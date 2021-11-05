@@ -1,0 +1,18 @@
+function [queryThreshold, thresholdConfidence] = getQueryThreshold(positiveTS, queryShapelet)
+
+%%% I know there will be 3, so take the average distance of the 3rd and 4th
+%%% subsequence
+subLength = length(queryShapelet);
+
+MP_AQ = real(mpx_AB(positiveTS, queryShapelet, subLength));
+topIndices = topSubsequenceIndices_V03(-MP_AQ, subLength);
+
+dist1 = positiveTS(topIndices(3));
+dist2 = positiveTS(topIndices(4));
+queryThreshold = (dist1 + dist2)/2;
+
+%%% dividing by sqrt(2*subLength) normalizes the distances between 0 and 1
+%%% It would be better if there was a higher confidence if low variance on
+%%%   to the left of query and also
+thresholdConfidence = (dist2 - dist1)/sqrt(2*subLength);
+end

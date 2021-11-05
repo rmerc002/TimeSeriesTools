@@ -1,0 +1,108 @@
+% counter = 0;
+% column = 3;%250;
+% for index = 1:size(S1Drill)-1
+%     if S1Drill{index,column} ~= S1Drill{index+1,column}
+%        fprintf("label %d length %d\n",S1Drill{index,column},counter);
+%        counter = 0;
+%     else
+%         counter = counter +1;
+%     end
+% end
+%now decide on sublength based on desired label
+
+% k = ceil(size(S1Drill,1)*0.5);
+k = 28330; %found to be middle of action 10/10 train test
+subLen = 300;
+maxWarp = 10;
+
+motionIndex = 69;
+weakLabelIndex = 135;
+motionData = S3Drill{:,motionIndex};%64};
+weakLabelData = S3Drill{:,weakLabelIndex};%135};
+
+% [ED_motif_distance,first_ed_motif,second_ed_motif,DTW_motif_distance,first_dtw_motif,second_dtw_motif] = DTWMotifDiscovery(motionData(1:k), subLen, maxWarp);
+
+% first_dtw_motif = 26774; %drink water, based on mp_dtw of column 64
+% second_dtw_motif = 14815;
+motif1 = zscore(motionData(first_dtw_motif:first_dtw_motif+subLen-1));
+motif2 = zscore(motionData(second_dtw_motif:second_dtw_motif+subLen-1));
+
+distances = inf(1,length(motionData)-subLen+1 - k);
+offset = k;
+for kindex = 1:size(motionData,1)-subLen+1 - k
+    distances(kindex) = dtw_upd(motif1,zscore(motionData(offset + kindex:offset + kindex+subLen-1,1)),maxwarp);
+%     if mod(kindex,1000) == 0
+%        fprintf("kindex: %d\n",kindex); 
+%     end
+end
+
+threshold = DTW_motif_distance*3;
+
+binaryDistances = distances < threshold;
+processedWeakLabels = weakLabelData - nanmean(weakLabelData);
+processedWeakLabels = processedWeakLabels/nanstd(processedWeakLabels);
+binaryLabels = processedWeakLabels(1:end)' > 2;
+
+%manual removal of drink while sitting
+% binaryLabels(616:817) = 0;
+% binaryLabels(2897:3179) = 0;
+% binaryLabels(5260:5504) = 0;
+% binaryLabels(7675:7928) = 0;
+% binaryLabels(10310:10650) = 0;
+% binaryLabels(12790:13060) = 0;
+% binaryLabels(15260:15550) = 0;
+% binaryLabels(17560:18000) = 0;
+% binaryLabels(20180:20510) = 0;
+% binaryLabels(22740:23000) = 0;
+% binaryLabels(25290:25540) = 0;
+
+%Choose Top 11
+A = zeros(2,length(distances));
+A(1,:) = 1:length(distances);
+A(2,:) = distances';
+A = A';
+B = sortrows(A,2);
+
+exclusionZone = zeros(1,length(distances));
+
+topn = 10;
+topMotifs = zeros(1,topn);
+index = 1;
+iterNum = 1;
+while index <= topn
+    trialIndex = B(iterNum,1);
+    if exclusionZone(trialIndex) == 0
+        topMotifs(index) = trialIndex;
+        index = index + 1;
+        exclusionZone(ceil(trialIndex-subLen/2):ceil(trialIndex+subLen/2)) = 1;
+    end
+    iterNum = iterNum + 1;
+end
+        
+binaryTop11 = zeros(1,length(distances));
+binaryTop11(topMotifs) = 1;
+
+%Binary Labels
+sampleRate = 30; %30 Hz
+dilateTime = 5; %5 seconds before and after
+dilateRadius = dilateTime*sampleRate;
+wle = binaryLabels;
+if sum(binaryDistances(:,1:dilateRadius)) >= 1
+   wle(:,1:dilateRadius) = 1; 
+end
+for index =dilateRadius+1:length(binaryLabels)-dilateRadius - 1
+    if sum(binaryLabels(:,index - dilateRadius+1:index + dilateRadius-1)) >= 1
+        wle(index) = 1;
+    end
+end
+
+
+
+
+figure;
+plot(binaryDistances + 1.05)
+% plot(binaryTop11 + 1.05);
+hold on;
+plot(binaryTop11 - 1.05);
+plot(wle);
+hold off;

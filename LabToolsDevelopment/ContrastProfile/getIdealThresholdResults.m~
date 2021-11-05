@@ -1,0 +1,67 @@
+function [tpIndices, fpIndices, fnIndices, idealThreshold] = getIdealThresholdResults(profileDistances, groundTruthIndices, subLength, numSignals, figureSavePath)
+%%% I'm going to temporarily run this independently of the test code
+%%% I will save results in the test level directory
+%%% 
+%%% Then this will be the output of running the code natively in the test
+%%% code
+
+%%% I can then generate another path script that fetches all the results
+%%%   at the test directory level and calculates statistics (mean, median,
+%%%   std)
+
+%%% How will I write this function
+%%% 1) get candidates
+%%% 2) keep candidates(1:numSignals)
+%%% 3) calculate the tp fp fn results
+
+    candidateIndices = topSubsequenceIndices_V03(profileDistances, subLength);
+    topCandidateIndices = candidateIndices(1:numSignals);
+
+
+    tpIndices = [];
+    fpIndices = [];
+    fnIndices = [];
+    
+    MP_AQ_Thresh = MP_AQ .* (MP_AQ <= queryThreshold);
+
+    groundTruthFound = zeros(length(groundTruthIndices),1);
+
+    for i1 = 1:length(topCandidateIndices)
+        ri = topCandidateIndices(i1);
+        isResultMatched = false;
+       for i2 = 1:length(groundTruthIndices)
+           gti = groundTruthIndices(i2);
+           if groundTruthFound(i2) == 0 && abs(ri - gti) <= subLength
+                   tpCount = tpCount + 1;
+                   tpIndices = [tpIndices,ri];
+                   groundTruthFound(i2) = 1;
+                   isResultMatched = true;
+                   break;
+           end
+           if groundTruthFound(i2) == 1 && abs(ri - gti) <= subLength
+                   fpCount = fpCount + 1;
+                   fpIndices = [fpIndices,ri];
+                   isResultMatched = true;
+                   break;
+           end
+           %%%if groundTruthFound(i2) == 0 && abs(ri - gti) > subLength
+           %%% then I don't care
+
+           %%% if groundTruthFound(i2) == 1 && abs(ri - gti) > subLength
+           %%% then I don't care
+       end
+       if isResultMatched == false
+           fpCount = fpCount + 1;
+           fpIndices = [fpIndices, ri];
+       end
+    end
+
+    fnIndices = groundTruthIndices((1-groundTruthFound)== 1);
+    fnCount = length(fnIndices);
+    
+    
+    dataSetFileName = "internVars_idealThresholdVals";
+    dataSetFilePath = fullfile(figureSavePath, dataSetFileName + ".mat");
+    save(dataSetFilePath, 'tpIndices','fpIndices','fnIndices');
+    
+end
