@@ -1,4 +1,5 @@
-function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos, tsNeg, m, maxFreq, forcePlot)
+function [plato, plato_twin, CP] = ContrastProfileDiv(positiveTS, negativeTS, m, forcePlot)
+    %%% This is the "classic" Contrast Profile
     %%% Input:
     %%%   positiveTS: A time series containing at least two instances of a desired behavior
     %%%   negativeTS: A time series containing zero instances of a desired behavior
@@ -12,132 +13,78 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos
     %%%   CP: Contrast Profile, which indicates subsequence within
     %%%       positiveTS that are less conserved in negativeTS
 
-    initial__pos_subcount = length(tsPos) - m + 1;
-    initial__neg_subcount = length(tsNeg) - m + 1;
+    initial__pos_subcount = length(positiveTS) - m + 1;
+    initial__neg_subcount = length(negativeTS) - m + 1;
     
-    if nargin == 4
+    if nargin == 3
         forcePlot = false;
-    elseif nargin ~= 5
+    elseif nargin ~= 4
         error('incorrect number of input arguments');
-    elseif ~isvector(tsPos) || ~isvector(tsNeg)
+    elseif ~isvector(positiveTS) || ~isvector(negativeTS)
         error('first and second arguments must be a 1D vector');
     elseif ~(isfinite(m) && floor(m) == m) || (m < 2) || (initial__pos_subcount < 2) || (initial__neg_subcount < 2)
         error('subsequence length must be an integer value between 2 and the length of the timeseries');
     end
     
-%     tsPos(isnan(tsPos)) = nanmean(tsPos);
-% 
-%     tsNeg(isnan(tsNeg)) = nanmean(tsNeg);
     
+    dataOrientation = 0; %0 for row, 1 for column
     %Change to row vector for internal use
-    if size(tsPos,1) == 1 
+    if size(positiveTS,1) == 1 
         %save the data orientation for matching output format to input
         %give orientation priority to positiveTS
-        tsPos = tsPos';
+        dataOrientation = 1; 
+        positiveTS = positiveTS';
     end
-    if size(tsNeg,1) == 1 
+    if size(negativeTS,1) == 1 
         %give orientation priority to positiveTS, do not save negative
         %orientation if different than positive
-        tsNeg = tsNeg';
+        negativeTS = negativeTS';
     end
     
-     
-
-    %%% Matrix profile self-join using positiveTS
-    [RFMP_AA, RFMP_AA_Indices] = RelativeFrequencyMatrixProfile(tsPos, tsPos, m, maxFreq);
-    RFMP_AA = real(RFMP_AA);
-    %TODO: need to figure out the bound of MASS_V2 in mpxAAKNN
     
+    %%% Matrix profile self-join using positiveTS
+    [MP_AA, MP_AA_Indices] = mpxSelfJoin(positiveTS,ceil(m/2),m);
+    MP_AA = real(MP_AA);
     %%% Euclidean distance values above sqrt(2*m) are equivalent to
     %%%   anti-correlated values
-    RFMP_AA = clipMatrixProfileAmplitude(RFMP_AA, m);
+    MP_AA = clipMatrixProfileAmplitude(MP_AA, m);
     %%% pad with NaN to make future comparisons between matrix profiles
-%     padLength = length(positiveTS) - length(MP_AA) + 1;
-%     MP_AA = [MP_AA;NaN(padLength,1)];
+    padLength = length(positiveTS) - length(MP_AA) + 1;
+    MP_AA = [MP_AA;NaN(padLength,1)];
 
     %%% Matrix profile AB-join between positiveTS and negativeTS
-    [RFMP_AB, RFMP_AB_Indices] = RelativeFrequencyMatrixProfile(tsPos, tsNeg, m, maxFreq);
-    RFMP_AB = real(RFMP_AB);
-    %TODO: need to figure out the bound of MASS_V2 in mpxAAKNN
-    
+    [MP_AB, MP_AB_Indices] = mpxABBA(positiveTS, negativeTS, m);
+    MP_AB = real(MP_AB);
     %%% Euclidean distance values above sqrt(2*m) are equivalent to
     %%%   anti-correlated values
-    RFMP_AB = clipMatrixProfileAmplitude(RFMP_AB, m);
+    MP_AB = clipMatrixProfileAmplitude(MP_AB, m);
     %%% pad with NaN to make future comparisons between matrix profiles
-%     padLength = length(positiveTS) - length(MP_AB) + 1;
-%     MP_AB = [MP_AB;NaN(padLength,1)];
-    
-    %%%If a non-overlapping candidates is less than maxFreq
-    effectiveMaxFreq = min(size(RFMP_AA,1), size(RFMP_AB,1));
-    if maxFreq > effectiveMaxFreq
-        fprintf("Warning!: Choice of maxFreq=%d was too large for dataset, setting to %d",maxFreq, effectiveMaxFreq);
-        RFMP_AA = RFMP_AA(1:effectiveMaxFreq,:);
-        RFMP_AB = RFMP_AB(1:effectiveMaxFreq,:);
-    end
-        
-    
+    padLength = length(positiveTS) - length(MP_AB) + 1;
+    MP_AB = [MP_AB;NaN(padLength,1)];
     
     %%% Contrast Profile
-    RFCP = RFMP_AB - RFMP_AA;
+    CP = MP_AB ./ MP_AA;
     %%% Normalize values to the range [0,1]
-    RFCP = normalizeContrastProfileAmplitude(RFCP, m);
+    CP = normalizeContrastProfileAmplitude(CP, m);
     
-    %%% For Debugging
-%     figure;
-%     tiledlayout(3,1);
-%     ax1 = nexttile();
-%     plot(positiveTS);
-%     
-%     ax2 = nexttile();
-%     hold on;
-%     plot(MP_AA(1,:));
-%     plot(MP_AB(1,:));
-%     hold off;
-%     
-%     ax3 = nexttile();
-%     hold on;
-%     plot(CP(1,:));
-%     plot(CP(7,:));
-%     hold off;
-%     linkaxes([ax1, ax2, ax3], 'x');
     
     %%% plato is the subsequence in positiveTS corresponding to index with
     %%%   largest contrast profile value
-    [maxContrastValues, platoIndices] = max(RFCP,[],2);
-    [maxContrastValue, KBest] = max(maxContrastValues);
-    platoIndex = platoIndices(KBest);
-    plato = tsPos(platoIndex:platoIndex+m-1);
-
-    %%%Alternative Plato calculation
-    CPmean = zeros(1,size(RFCP,2));
-    for ti = 1:length(tsPos)-m+1
-        subsequence = tsPos(ti:ti+m-1);
-        if sum(isnan(subsequence)) > 0
-            continue
-        end
-       CPmean(ti) = norm(RFCP(:,ti))/sqrt(K); %% root mean squared
-    end
-    [maxContrast, maxCPIndex] = max(CPmean);
-    startIndex = maxCPIndex;
-    endIndex = startIndex + subLength - 1;
-    plato = positiveTS(startIndex:endIndex);
-
+    [maxContrastValue, platoIndex] = max(CP);
+    plato = positiveTS(platoIndex:platoIndex + m - 1);
     
     %%% plato_twin is the nearest neighbor of plato within positieTS
     %%%   It is not necessarily the second largest contrast profile value
-    platoTwinIndex = RFMP_AA_Indices(KBest, platoIndex);
-    if platoTwinIndex+ m-1 > length(tsPos)
-        platoTwinIndex = length(tsPos)-m+1;
-    end
-    plato_twin = tsPos(platoTwinIndex:platoTwinIndex + m - 1);
-
+    platoTwinIndex = MP_AA_Indices(platoIndex);
+    plato_twin = positiveTS(platoTwinIndex:platoTwinIndex + m - 1);
+    
+    
     
 
     %%%%%%%%%%%%%
     %%% PLOTS %%%
     %%%%%%%%%%%%%
     if forcePlot == true
-        visualizeMMPAB(tsPos, 1-RFCP, RFMP_AA_Indices, [], [], [], m, 1:maxFreq, "KNN","");
         
         redColor = [0.73,0.05,0];
         greenColor = [0,0.73,0.41]; 
@@ -147,8 +94,8 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos
         platoColor = [129/255, 51/255, 144/255];
         platoTwinColor = [115/255, 170/255, 43/255];
 
-        tsLength = length(tsPos);
-        maxTSLength = max(length(tsPos),length(tsNeg));
+        tsLength = length(positiveTS);
+        maxTSLength = max(length(positiveTS),length(negativeTS));
 
         fig = figure('Name','Contrast Profile: Panel','NumberTitle','off'); 
         set(gcf, 'Position', [0,100,2000,600]);
@@ -156,35 +103,35 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos
         tiledlayout(5,1);
         
         ax1 = nexttile;
-        plot(tsNeg,'Color',redColor);
+        plot(negativeTS,'Color',redColor);
         formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(-)}\\color{black}: Negative Time Series",redColor(1), redColor(2), redColor(3));
         title(formattedTitle);
-        set(gca,'xtick',[1,length(tsNeg)],'ytick',[], 'TickDir','out');
+        set(gca,'xtick',[1,length(negativeTS)],'ytick',[], 'TickDir','out');
         xlim([1,maxTSLength]);
         box off;
         
         ax2 = nexttile;
-        plot(tsPos);
+        plot(positiveTS);
         xlim([1,maxTSLength]);
         formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(+)}\\color{black}: Positive Time Series",blueColor(1),blueColor(2),blueColor(3));
         title(formattedTitle);
-        set(gca,'xtick',[1,length(tsPos)],'ytick',[], 'TickDir','out');
+        set(gca,'xtick',[1,length(positiveTS)],'ytick',[], 'TickDir','out');
         xlim([1,maxTSLength]);
         box off;
         
         ax3 = nexttile;
-        plot(RFMP_AA(KBest,:),'Color',blueColor);
+        plot(MP_AA,'Color',blueColor);
         hold on;
-        plot(RFMP_AB(KBest,:),'Color',redColor);
+        plot(MP_AB,'Color',redColor);
         xlim([1,maxTSLength]);
         ylim([0,sqrt(2*m)]);
         formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}MP^{(+ -)} AB-join, \\color[rgb]{%f,%f,%f}MP^{(+ +)} Self-Join",redColor(1), redColor(2), redColor(3),blueColor(1),blueColor(2),blueColor(3));
         title(formattedTitle);
-        set(gca,'xtick',[1,length(tsPos)],'ytick',[0,sqrt(2*m)], 'TickDir','out');
+        set(gca,'xtick',[1,length(positiveTS)],'ytick',[0,sqrt(2*m)], 'TickDir','out');
         box off;
         
         ax4 = nexttile;
-        plot(RFCP(KBest,:),'Color',grayColor);
+        plot(CP,'Color',grayColor);
         hold on;
         scatter(platoIndex, 1,10,'MarkerFaceColor',platoColor,'MarkerEdgeColor',platoColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
         scatter(platoTwinIndex, 1,10,'MarkerFaceColor',platoTwinColor,'MarkerEdgeColor',platoTwinColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0);
@@ -193,26 +140,17 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos
         ylim([0,1]);
         formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Contrast Profile, \\color[rgb]{%f,%f,%f}Plato, \\color[rgb]{%f,%f,%f}Plato Twin",grayColor(1), grayColor(2), grayColor(3), platoColor(1), platoColor(2), platoColor(3), platoTwinColor(1), platoTwinColor(2), platoTwinColor(3));
         title(formattedTitle);
-        set(gca,'xtick',[1,length(tsPos)],'ytick',[0,1], 'TickDir','out');
+        set(gca,'xtick',[1,length(positiveTS)],'ytick',[0,1], 'TickDir','out');
         box off;
         
         ax5 = nexttile;
-        tsPosNoNan = tsPos;
-        tsPosIsNan = isnan(tsPos);
-        tsPosNoNan(tsPosIsNan) = mean(tsPos); 
-        distanceProfile = MASS_V2(tsPosNoNan, plato);
+        distanceProfile = mpxABBA(positiveTS, plato, m);
         distanceProfile = real(distanceProfile);
-        for nanIndex = 1:length(tsPosIsNan)
-           if tsPosIsNan(nanIndex) == true
-               startIndex = max(1,nanIndex-m + 1);
-              distanceProfile(startIndex:nanIndex) = nan;
-           end
-        end
         plot(distanceProfile);
         xlim([1,maxTSLength]);
         formattedTitle = sprintf("Distance Profile: T^{(+)} join Plato");
         title(formattedTitle);
-        set(gca,'xtick',[1,length(tsPos)],'ytick',[0,sqrt(2*m)], 'TickDir','out');
+        set(gca,'xtick',[1,length(positiveTS)],'ytick',[0,sqrt(2*m)], 'TickDir','out');
         box off;
         
         linkaxes([ax1 ax2 ax3 ax4 ax5],'x')
@@ -234,7 +172,7 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos
         for i = 1:length(subsequenceIndices)
             ti = subsequenceIndices(i);
             color = colors(i,:);
-            tempTS = tsPos(ti:ti+m-1);
+            tempTS = positiveTS(ti:ti+m-1);
             tempMin = min(tempTS);
             tempMax = max(tempTS);
             tempRange = max(1e-5, tempMax-tempMin);
@@ -252,6 +190,13 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(tsPos
         
         fprintf('plato index: %d, plato twin index: %d\n', platoIndex, platoTwinIndex);
     end
+    
+    if dataOrientation == 1
+       plato = plato'; 
+       plato_twin = plato_twin';
+       CP = CP';
+    end
+    
 end
 
 function [mp] = clipMatrixProfileAmplitude(mp,m)

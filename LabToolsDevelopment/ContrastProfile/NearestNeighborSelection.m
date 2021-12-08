@@ -4,13 +4,11 @@ function [sortedLowestIndices, correspondingDistances] = NearestNeighborSelectio
 %%%   using excluson zone around matches
 %%%   K (optional): return Top-K min indices. Default return all possible indices, 
 %%%   WARNING: may not
-exclusionLength = subLength;
+exclusionLength = ceil(subLength/2);
 
 KMax = 2*floor(length(distanceProfile)/(subLength));
+
 if nargin == 2
-    exclusionLength = ceil(subLength/2);
-end
-if nargin == 3
     K = KMax;
 elseif nargin < 2 || nargin > 4
     error('incorrect number of input arguments');

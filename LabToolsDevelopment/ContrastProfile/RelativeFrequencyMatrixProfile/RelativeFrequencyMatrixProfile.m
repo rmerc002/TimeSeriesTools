@@ -10,15 +10,23 @@ if size(tsA,1) == 1
 else
     tsA = tsA';
 end
-if size(tsB,1) ~= 1 
-    %give orientation priority to positiveTS, do not save negative
-    %orientation if different than positive
-    tsB = tsB';
-end
+
+
     
 selfFlag = false;
-if length(tsA) == length(tsB) && mean(tsA == tsB)>0.9
+if isempty(tsB)
    selfFlag = true;
+   tsB = tsA;
+end
+
+if ~(size(tsB,1) == 1 )
+%give orientation priority to positiveTS, do not save negative
+%orientation if different than positive
+    tsB = tsB';
+end
+
+if  length(tsA) == length(tsB) && mean(tsA == tsB)>0.9
+    selfFlag = true;
 end
     
 tsANonNan = tsA;

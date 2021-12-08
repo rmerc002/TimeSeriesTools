@@ -1,0 +1,3 @@
+[submodule "LabToolsMature/SCAMP"]
+	path = LabToolsMature/SCAMP
+	url = https://github.com/zpzim/SCAMP

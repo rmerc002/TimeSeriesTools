@@ -16,6 +16,7 @@ tsNorm = (ts-tsMean)/tsSTD;
 tsTransforms{end+1} = {tsNorm.^2,"ZScore^2"};
 tsTransforms{end+1} = {tsNorm.^3,"ZScore^3"};
 
+
 figure;
 inset = 0.9;
 hold on;
@@ -27,7 +28,7 @@ for transformIndex = 1:length(tsTransforms)
    tempMax = nanmax(tempTS);
    tempRange = tempMax - tempMin;
    tempPlot = -plotIndex + inset*(tempTS - tempMin)/tempRange;
-   
+
    plot(tempPlot);
    text(0, -plotIndex+0.8,name,'FontSize',12);
 end
@@ -39,5 +40,5 @@ title(titleFormat);
 xlabel("Time Index");
 set(gca,'xtick',[1,length(ts)],'ytick',[], 'TickDir','out');
 box off;
-       
+
 end

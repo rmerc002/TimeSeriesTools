@@ -1,0 +1,71 @@
+function [scores] = BehaviorSimilarityMeasure_Hybrid(dataA, dataB, dataC, subLength, distanceThreshold)
+
+distanceThreshold = 0.75;
+
+endRegimeAIndex = length(dataA)-subLength+1;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% AB
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+[mpAB, mpiAB] = mpx_v3([dataA; dataB], floor(subLength/2), subLength, false);
+mpAB = mpAB(1:endRegimeAIndex);
+mpAB = mpAB/sqrt(2*subLength);
+mpiAB = mpiAB(1:endRegimeAIndex);
+% mpiAB_Count = mpiAB <= length(endRegimeAIndex);
+
+mpActive = mpAB <= distanceThreshold;
+mpAB = mpAB(mpActive);
+mpiAB = mpiAB(mpActive);
+
+mpiAB_Count = mpiAB <= endRegimeAIndex;
+
+mpLinspace = linspace(1,0,length(mpiAB_Count));
+[~,mpAB_sortedOrder] = sort(mpAB);
+mpAB_orderedLinspace = zeros(length(mpLinspace),1);
+mpAB_orderedLinspace(mpAB_sortedOrder) = mpLinspace;
+mpAB_weightedElements = mpAB_orderedLinspace.*mpiAB_Count;
+mpAB_weightedMean = mean(mpAB_weightedElements);
+
+
+scores.AB = mpAB_weightedMean;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% AC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+[mpAC, mpiAC] = mpx_v3([dataA; dataC], floor(subLength/2), subLength, false);
+mpAC = mpAC(1:endRegimeAIndex);
+mpiAC = mpiAC(1:endRegimeAIndex);
+% mpiAC_Count = mpiAC <= length(endRegimeAIndex);
+
+mpActive = mpAC <= distanceThreshold;
+mpAC = mpAC(mpActive);
+mpiAC = mpiAC(mpActive);
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%   Weighted Scores   %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+mp_size = size(mp);
+mp_flattened = reshape(mp,[numel(mp),1]);
+[~,mp_sorted_indices] = sort(mp_flattened);
+mp_linspace = linspace(1,0,numel(mp));
+mp_uniform_values = nan(numel(mp),1);
+mp_uniform_values(mp_sorted_indices) = mp_linspace;
+mp_unflattened = reshape(mp_uniform_values, mp_size);
+
+mpi_class = mpi >= endRegimeAIndex;
+mpi_class = mpi_class*2-1;
+mpi_class_weighted = mpi_class.*mp_unflattened;
+
+%Top-1 NN
+tempValuesNeg = mpi_class_weighted(1:endRegimeAIndex);
+tempValuesNeg(tempValuesNeg > 0) = 0;
+tempValuesNeg(tempValuesNeg < 0) = -1*tempValuesNeg(tempValuesNeg < 0);
+meanWornShoesWeighted01 = mean(tempValuesNeg,'all'); 
+
+tempValuesPos = mpi_class_weighted(endRegimeAIndex:end);
+tempValuesPos(tempValuesPos < 0) = 0;
+meanNewShoesWeighted01 = mean(tempValuesPos,'all'); 
+
+
+%Return Values
+score1 = meanWornShoesWeighted01;
+score2 = meanNewShoesWeighted01;

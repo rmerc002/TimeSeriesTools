@@ -24,7 +24,11 @@ subLenSeries = [];
 %     endLength = 600;
 % end
 % subLenSeries = startLength:endLength;
-subLenSeries = getSubLenSeries(startLength, endLength, numLengths);
+if numLengths < endLength - startLength
+    subLenSeries = getSubLenSeries(startLength, endLength, numLengths);
+else
+    subLenSeries = startLength:endLength;
+end
 % subLenSeries = 10:10:800;
 % subLenSeries = 1:50;
 
@@ -131,6 +135,6 @@ powerMin = log10(startLength);
 powerMax = log10(endLength);
 powerStep = (powerMax-powerMin)/numLengths;
 powers = powerMin:powerStep:powerMax;
-subLenSeries = unique(ceil(power(10,powers)));
+subLenSeries = unique(round(power(10,powers)));
 
 end

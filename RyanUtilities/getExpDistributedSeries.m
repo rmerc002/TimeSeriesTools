@@ -17,6 +17,6 @@ powerMax = log10(endLen);
 % numSteps = 80;
 powerStep = (powerMax-powerMin)/numSteps;
 powers = powerMin:powerStep:powerMax;
-subLenSeries = unique(ceil(power(10,powers)));
+subLenSeries = unique(round(power(10,powers)));
 
 end

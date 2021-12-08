@@ -1,5 +1,6 @@
 function plotQueryNN(ts, query, KNN)
     m = length(query);
+    epsilon = 1e-6;
     %%%Generating unique colors for classes when there can be many classes
     %%% I will assume no more than 1000 classes
     numColors = 1000;
@@ -11,8 +12,15 @@ function plotQueryNN(ts, query, KNN)
     
     DP = getPlatoDistanceProfile(ts, query);
     
-    NN = NearestNeighborSelection(DP, m, KNN);
-
+    [NN, NNDist] = NearestNeighborSelection(DP, m, KNN+1);
+    
+    %%%Ignore the first if match is exact, it is likely finding query from
+    %%%the time series it came from
+    if NNDist(1) < epsilon
+       NN(1) = [];
+       NNDist(1) = [];
+    end
+    
     sampleLength = contextLength + m + contextLength;
     subsequences = nan(1+KNN,sampleLength);
     
@@ -52,7 +60,7 @@ function plotQueryNN(ts, query, KNN)
         color = colors(ssIndex,:);
         startIndex = contextLength+1;
         endIndex = startIndex + m-1;
-        plot(xVals(startIndex:endIndex),tempPlot(startIndex:endIndex),'Color',color, 'LineWidth',2);
+        plot(xVals(startIndex:endIndex),tempPlot(startIndex:endIndex),'Color',color, 'LineWidth',1);
     end
     plot([xVals(1),xVals(end)], [-1.1, -1.1], '--', 'Color', [0.5, 0.5, 0.5]);
     plot([xVals(1),xVals(end)], [-plotIndex-0.1, -plotIndex-0.1], '--', 'Color', [0.5, 0.5, 0.5]);
@@ -75,7 +83,7 @@ function plotQueryNN(ts, query, KNN)
         startIndex = contextLength+1;
         endIndex = startIndex + m-1;
         if ssIndex == 1
-            lw = 1;
+            lw = 2;
         else
             lw = 0.5;
         end
@@ -83,7 +91,7 @@ function plotQueryNN(ts, query, KNN)
     end
     hold off;
     
-    titleFormat = sprintf("Plato with %d NN", KNN);
+    titleFormat = sprintf("Query with %d NN", KNN);
     title(titleFormat);
     xlabel("Time Index");
     set(gca,'xtick',[1-contextLength,1,m,m+contextLength],'ytick',[], 'TickDir','out');

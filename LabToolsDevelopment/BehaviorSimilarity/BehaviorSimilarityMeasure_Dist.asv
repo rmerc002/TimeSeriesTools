@@ -1,0 +1,35 @@
+function [scores] = BehaviorSimilarityMeasure_Dist(dataA, dataB, dataC)
+% uiopen('C:\Users\Ryan\Dropbox\Education\UCR\Research\0_Projects\ActiveResearch\ContrastProfile\Experiments\2021-06-07_PhoneExperiments\Walking_WornNew_MailboxToLightPost\Raw Data.csv',1)
+% data = RawData{1:3:end,5};
+subLength = 50;
+
+mpAA = mpx_v3(dataA, floor(subLength/2), subLength, false)/sqrt(2*subLength);
+scores.AAmean = mean(mpAA);
+scores.AAstd = std(mpAA);
+
+mpBB = mpx_v3(dataB, floor(subLength/2), subLength, false)/sqrt(2*subLength);
+scores.BBmean = mean(mpBB);
+scores.BBstd = std(mpBB);
+
+mpAC = mpx_ABBA_v2(dataA, dataC, subLength)/sqrt(2*subLength);
+scores.ACmean = mean(mpAC);
+scores.ACstd = std(mpAC);
+
+mpBC = mpx_ABBA_v2(dataB, dataC, subLength)/sqrt(2*subLength);
+scores.BCmean = mean(mpBC);
+scores.BCstd = std(mpBC);
+
+mpAB = mpx_ABBA_v2(dataA, dataB, subLength)/sqrt(2*subLength);
+scores.ABmean = mean(mpAB);
+scores.ABstd = std(mpAB);
+
+mpBA = mpx_ABBA_v2(dataB, dataA, subLength)/sqrt(2*subLength);
+scores.BAmean = mean(mpBA);
+scores.BAstd = std(mpBA);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%  boxplot %%%
+%%%%%%%%%%%%%%%%
+maxLength = max([length(mpAA), length(mpBB), length(mpAC), length(mpBC), length(mpAB), length(mpBA)]);
+groupedMatrix = nan(,6);
+boxplot({mpAA, mpBB, mpAB, mpBA, mpAC, mpBC},'Labels',{'mpAA', 'mpBB', 'mpAB', 'mpBA', 'mpAC', 'mpBC'});

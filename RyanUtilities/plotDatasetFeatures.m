@@ -10,14 +10,15 @@ function plotDatasetFeatures(dataMatrix, outputPath)
 numFeatures = size(dataMatrix,2);
 numSamples = size(dataMatrix,1);
 
+inset = 0.9;
 fig = figure;
 hold on;
 for plotIndex = 1:numFeatures
    tempTS = dataMatrix(:,plotIndex);
-   tempMin = nanmin(tempTS);
-   tempMax = nanmax(tempTS);
-   tempRange = nanmax(1e-8, tempMax - tempMin);
-   tempS = -plotIndex + 0.9*(tempTS - tempMin)/tempRange;
+   tempMin = min(tempTS, [], 'omitnan');
+   tempMax = max(tempTS, [], 'omitnan');
+   tempRange = tempMax - tempMin;
+   tempS = -plotIndex + inset*(tempTS - tempMin)/tempRange;
    
    plot(tempS);
 end
