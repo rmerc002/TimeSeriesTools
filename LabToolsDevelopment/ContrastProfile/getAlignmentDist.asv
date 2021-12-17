@@ -1,0 +1,20 @@
+function alignmentDist = getAlignmentDist(subsequenceWithContext, query)
+    %%%assume equal context lengths padding a learned shape with the same
+    %%%length as the query
+    m = length(query);
+    contextLength = floor((length(subsequenceWithContext)-m)/2);
+
+    startIndex = contextLength + 1;
+    endIndex = startIndex + m - 1;
+    subsequence = subsequenceWithContext(startIndex:endIndex);
+    centralDist = norm(zscore(subsequence) - zscore(query));
+    DP = real(MASS_V2(subsequenceWithContext, query));
+
+    tempWeights = linspace(0,1,m+1);
+    tempWeights = tempWeights(1:end-1);
+    weights = [tempWeights, 1, tempWeights(end:-1:1)];
+    DPGain = DP - centralDist;
+    weighteDPGain = weights.*DPGain;
+
+    alignmentDist = min(weighteDPGain) + centralDist;
+end

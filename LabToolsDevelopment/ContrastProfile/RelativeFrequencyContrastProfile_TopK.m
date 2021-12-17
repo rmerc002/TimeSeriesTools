@@ -128,6 +128,7 @@ function [platos, platoIndices, platoContrast] = RelativeFrequencyContrastProfil
         pastPlato = reshape(pastPlato,1,length(pastPlato));
 %         RFMP_AA(:,startIndex:endIndex) = nan;
     end
+    platoContrast = platoContrast(1,:);
 end
 
 function [mp] = clipMatrixProfileAmplitude(mp,m)

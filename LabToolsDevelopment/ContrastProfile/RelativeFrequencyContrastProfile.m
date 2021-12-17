@@ -1,4 +1,4 @@
-function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(positiveTS, negativeTS, m, maxFreq, forcePlot)
+function [plato, platoIndex, platoContrast] = RelativeFrequencyContrastProfile(positiveTS, negativeTS, m, maxFreq, forcePlot)
     %%% Input:
     %%%   positiveTS: A time series containing at least two instances of a desired behavior
     %%%   negativeTS: A time series containing zero instances of a desired behavior
@@ -8,8 +8,8 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
     %%%   forcePlot: (optional) Display the following two plots
     %%%
     %%% Output:
-    %%%   plato: The subsequence that most distinguishes 
-    %%%          positiveTS from negativeTS. Determined based on 
+    %%%   plato: The subsequence that most distinguishes
+    %%%          positiveTS from negativeTS. Determined based on
     %%%          maximum of root mean squared contrast for each time index.
     %%%   RFCP: Contrast Profile, which indicates subsequence within
     %%%       positiveTS that are less conserved in negativeTS
@@ -17,7 +17,7 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
 
     initial__pos_subcount = length(positiveTS) - m + 1;
     initial__neg_subcount = length(negativeTS) - m + 1;
-    
+
     if nargin == 4
         forcePlot = false;
     elseif nargin ~= 5
@@ -27,30 +27,30 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
     elseif ~(isfinite(m) && floor(m) == m) || (m < 2) || (initial__pos_subcount < 2) || (initial__neg_subcount < 2)
         error('subsequence length must be an integer value between 2 and the length of the timeseries');
     end
-    
+
 %     tsPos(isnan(tsPos)) = nanmean(tsPos);
-% 
+%
 %     tsNeg(isnan(tsNeg)) = nanmean(tsNeg);
-    
+
     %Change to row vector for internal use
-    if size(positiveTS,1) == 1 
+    if size(positiveTS,1) == 1
         %save the data orientation for matching output format to input
         %give orientation priority to positiveTS
         positiveTS = positiveTS';
     end
-    if size(negativeTS,1) == 1 
+    if size(negativeTS,1) == 1
         %give orientation priority to positiveTS, do not save negative
         %orientation if different than positive
         negativeTS = negativeTS';
     end
-    
-     
+
+
 
     %%% Matrix profile self-join using positiveTS
     [RFMP_AA, RFMP_AA_Indices] = RelativeFrequencyMatrixProfile(positiveTS, positiveTS, m, maxFreq);
     RFMP_AA = real(RFMP_AA);
     %TODO: need to figure out the bound of MASS_V2 in mpxAAKNN
-    
+
     %%% Euclidean distance values above sqrt(2*m) are equivalent to
     %%%   anti-correlated values
     RFMP_AA = clipMatrixProfileAmplitude(RFMP_AA, m);
@@ -62,48 +62,48 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
     [RFMP_AB, RFMP_AB_Indices] = RelativeFrequencyMatrixProfile(positiveTS, negativeTS, m, maxFreq);
     RFMP_AB = real(RFMP_AB);
     %TODO: need to figure out the bound of MASS_V2 in mpxAAKNN
-    
+
     %%% Euclidean distance values above sqrt(2*m) are equivalent to
     %%%   anti-correlated values
     RFMP_AB = clipMatrixProfileAmplitude(RFMP_AB, m);
     %%% pad with NaN to make future comparisons between matrix profiles
 %     padLength = length(positiveTS) - length(MP_AB) + 1;
 %     MP_AB = [MP_AB;NaN(padLength,1)];
-    
+
     %%%If a non-overlapping candidates is less than maxFreq
     effectiveMaxFreq = min(size(RFMP_AA,1), size(RFMP_AB,1));
     if maxFreq > effectiveMaxFreq
-        fprintf("Warning!: Choice of maxFreq=%d was too large for dataset, setting to %d",maxFreq, effectiveMaxFreq);
+        fprintf("Warning!: Choice of maxFreq=%d was too large for dataset, setting to %d\n",maxFreq, effectiveMaxFreq);
         RFMP_AA = RFMP_AA(1:effectiveMaxFreq,:);
         RFMP_AB = RFMP_AB(1:effectiveMaxFreq,:);
     end
-        
-    
-    
+
+
+
     %%% Contrast Profile
     RFCP = RFMP_AB - RFMP_AA;
     %%% Normalize values to the range [0,1]
     RFCP = normalizeContrastProfileAmplitude(RFCP, m);
-    
+
     %%% For Debugging
 %     figure;
 %     tiledlayout(3,1);
 %     ax1 = nexttile();
 %     plot(positiveTS);
-%     
+%
 %     ax2 = nexttile();
 %     hold on;
 %     plot(MP_AA(1,:));
 %     plot(MP_AB(1,:));
 %     hold off;
-%     
+%
 %     ax3 = nexttile();
 %     hold on;
 %     plot(CP(1,:));
 %     plot(CP(7,:));
 %     hold off;
 %     linkaxes([ax1, ax2, ax3], 'x');
-    
+
     %%% plato is the subsequence in positiveTS corresponding to index with
     %%%   largest contrast profile value
 %     [maxContrastValues, platoIndices] = max(RFCP,[],2);
@@ -121,13 +121,13 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
         end
        CPmean(ti) = norm(RFCP(:,ti))/sqrt(maxFreq); %% root mean squared
     end
-    [maxContrast, maxCPIndex] = max(CPmean);
-    platoIndex = maxCPIndex;
-    startIndex = maxCPIndex;
+    [platoContrast, platoIndex] = max(CPmean);
+    platoIndex = platoIndex;
+    startIndex = platoIndex;
     endIndex = startIndex + m - 1;
     plato = positiveTS(startIndex:endIndex);
 
-    
+
     %%% plato_twin is the nearest neighbor of plato within positieTS
     %%%   It is not necessarily the second largest contrast profile value
     platoTwinIndex = RFMP_AA_Indices(1, platoIndex);
@@ -136,22 +136,22 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
     end
 %     plato_twin = tsPos(platoTwinIndex:platoTwinIndex + m - 1);
 
-    
+
 
     %%%%%%%%%%%%%
     %%% PLOTS %%%
     %%%%%%%%%%%%%
     if forcePlot == true
         visualizeMMPAB(positiveTS, 1-RFCP, RFMP_AA_Indices, [], [], [], m, 1:maxFreq, "KNN","");
-        
+
         redColor = [0.73,0.05,0];
-        greenColor = [0,0.73,0.41]; 
+        greenColor = [0,0.73,0.41];
         blueColor = [0,0.29,0.73];
         grayColor = [0.75,0.75,0.75];
         lightBlueColor = [0.01, 0.83,0.99];
         platoColor = [129/255, 51/255, 144/255];
         platoTwinColor = [115/255, 170/255, 43/255];
-        
+
         %%%%%%%%%%%%%%%%%%
         %%% PLATO plot %%%
         %%%%%%%%%%%%%%%%%%
@@ -159,7 +159,7 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
         set(gcf, 'Position', [0,100,400,400]);
         annotation('textbox', [0, 0.75, 0, 0], 'string', 'Plato')
         annotation('textbox', [0, 0.35, 0, 0], 'string', 'Plato Twin')
-        
+
         subsequenceIndices = [platoIndex, platoTwinIndex];
         colors = [platoColor; platoTwinColor];
         plotIndex = 0;
@@ -177,14 +177,14 @@ function [plato, RFCP, RFMP_AA_Indices] = RelativeFrequencyContrastProfile(posit
             plotIndex = plotIndex + 1;
         end
         hold off;
-        
+
 
         xlim([0,m]);
         formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Plato \\color{black}(top) and \\color[rgb]{%f,%f,%f}Plato Twin \\color{black}(bottom)",platoColor(1), platoColor(2), platoColor(3), platoTwinColor(1), platoTwinColor(2), platoTwinColor(3));
         title(formattedTitle);
         set(gca,'xtick',[1,m],'ytick',[], 'TickDir','out');
         box off;
-        
+
         fprintf('plato index: %d, plato twin index: %d\n', platoIndex, platoTwinIndex);
     end
 end
@@ -199,7 +199,7 @@ function [cp] = normalizeContrastProfileAmplitude(cp, m)
     %discard negative values. These occur when a subsequence in T+ has a
     %closer nearest neighbor in T-. It's not a behavior of interest for
     %this research.
-    cp = nanmax(0, cp); 
+    cp = nanmax(0, cp);
 end
 
 function [matrixProfile, matrixProfileIdx, isvalidwindow, motifsIdx, discordsIdx] = mpxSelfJoin(timeseries, minlag, subseqlen, plot_output)
@@ -242,12 +242,12 @@ function [matrixProfile, matrixProfileIdx, isvalidwindow, motifsIdx, discordsIdx
 % conditioned data.
 %
 % Edited: 12/24/20: Added missing data features. These are still somewhat
-% experimental. They check for any non-normalizable windows, mark them, 
-% and apply noise to any sequences of constants. The extra check of update 
+% experimental. They check for any non-normalizable windows, mark them,
+% and apply noise to any sequences of constants. The extra check of update
 % or no update is implicit, since the comparison is false if either operand
 % is nan. This is not advisable in all environments.
 %
-% The difference equations formula was also adjusted to omit the leading 
+% The difference equations formula was also adjusted to omit the leading
 % zero, because this casues problems in tiled implementations when starting
 % from some point other than the beginning of the time series.
 
@@ -405,9 +405,9 @@ end
 %     else
 %         gui.plotData();
 %     end
-%     
+%
 %     gui.drawgui;
-%     
+%
 % end
 
 if transposed_  % matches the profile and profile index but not the motif or discord index to the input format
@@ -470,9 +470,9 @@ while i < length(singularities)
     % find an appropriate scale factor based on the constant occupying
     % this region.
     v = abs(timeseries(singularities(i)));
-    if v == 0 
+    if v == 0
         %just use a standard deviation of 1.
-        % It might seem better to look at surrounding windows, but at 
+        % It might seem better to look at surrounding windows, but at
         % that point, we have to recursively check those windows.
         scale = 1;
     elseif v < 1
@@ -487,21 +487,21 @@ while i < length(singularities)
     else
         scale = 1 + log(v);
     end
-   
+
     % 0.01 is just to ensure this doesn't perturb leading digits
     % in case this data provides a partial window for some normalizable
-    % section. Feel free to make it smaller or larger. 
+    % section. Feel free to make it smaller or larger.
     % The data variance dependent portion is handled by "scale".
     timeseries(i : j + subseqlen - 1) = 0.01 * scale * randn(j + subseqlen - i, 1);
-    
+
     % If any kind of error happens here, this is the point where we give
     % up, as it becomes very difficult to achieve predictable results.
     if any(~isfinite(timeseries(i : j + subseqlen - 1)))
         error(fprintf('unable to fix missing spanning %d to %d\n', i, j));
     end
-    
+
     i = j + 1;
-    
+
 end
 
 end
@@ -567,7 +567,7 @@ for i = 1 : motifCount
     [corrProfile] = crosscov(motIdx);
     corrProfile = min(1, corrProfile(1 : length(timeseries) - subseqLen + 1) .* invnorm, 'includenan');
     % This uses correlation instead of normalized Euclidean distance, because it's easier to work with and involves fewer operations.
-    
+
     corrProfile(isnan(matrixProfile)) = NaN;
     if exclusionLen > 0
         for j = 1 : 2
@@ -576,7 +576,7 @@ for i = 1 : motifCount
             corrProfile(exclRangeBegin : exclRangeEnd) = NaN;
         end
     end
-    
+
     for j = 3 : neighborCount + 2
         [neighborCorr, neighbor] = max(corrProfile);
         % If you want to put a reasonable global bound on it,
@@ -626,12 +626,12 @@ for i = w + 1 : length(a)
     z = x - p;
     s = s + ((p - (x - z)) - (a(i - w) + z));
     p = x;
-    
+
     x = p + a(i);
     z = x - p;
     s = s + ((p - (x - z)) + (a(i) - z));
     p = x;
-    
+
     res(i - w + 1) = p + s;
 end
 
@@ -643,7 +643,7 @@ end
 
 function [mp_a, mp_b, mpi_a, mpi_b] = mpxABBA(a, b, w)
 % (mpx_ABBA_v2 titled from Kaveh Kamgar, 2020-12-24 16:56)
-% Code and update formulas are by Kaveh Kamgar. 
+% Code and update formulas are by Kaveh Kamgar.
 % GUI and top k motif critera are based on but not identical to some code
 % by Michael Yeh. Implementation details are specified above.
 %
@@ -681,7 +681,7 @@ end
 subcount_a = length(a) - w + 1;
 subcount_b = length(b) - w + 1;
 
-% slightly misleading name. This both identifies valid windows and 
+% slightly misleading name. This both identifies valid windows and
 % perturbs flat data with a bit of noise, scaled appropriately. If it flips
 % any nearest neighbors, they were already unreliable matches.
 [a, isvalid_a, first_a, last_a] = find_valid_windows(a, w);
@@ -698,7 +698,7 @@ invn_b = NaN(length(b) - w + 1, 1);
 % or perturbed initial comparisons
 for i = 1 : length(invn_a)
     if isvalid_a(i)
-        invn_a(i) = 1 / norm(a(i : i + w - 1) - mu_a(i)); 
+        invn_a(i) = 1 / norm(a(i : i + w - 1) - mu_a(i));
     end
 end
 
@@ -708,13 +708,13 @@ for i = 1 : length(invn_b)
     end
 end
 
-% This means that for some subsequence, 1/(norm(subseq - mean(subseq)) 
+% This means that for some subsequence, 1/(norm(subseq - mean(subseq))
 % is not a finite value, AND this subsequence was not noticed by a mising
 % data or constant window check. It is intended as an indicator that you
 % should investigate the data itself, because we can't concretely identify
 % the issue here. It can be something as simple as intermediate overflow,
-% but with double precision inputs, even that is typically indicative 
-% of a problem with the input. 
+% but with double precision inputs, even that is typically indicative
+% of a problem with the input.
 
 if any(~isfinite(invn_a) & isvalid_a)
     warning('Times series a has non-normalizable subsequences, which were not detected by the missing data passes');
@@ -761,12 +761,12 @@ if first_b ~= 1
 end
 
 if last_a ~= subcount_a
-    mp_a = [mp_a; NaN(subcount_a - length(mp_a), 1)]; 
+    mp_a = [mp_a; NaN(subcount_a - length(mp_a), 1)];
     mpi_a = [mpi_a; NaN(subcount_a - length(mp_a), 1)];
 end
 
 if last_b ~= subcount_b
-    mp_b = [mp_b; NaN(subcount_b - length(mp_b), 1)]; 
+    mp_b = [mp_b; NaN(subcount_b - length(mp_b), 1)];
     mpi_b = [mpi_b; NaN(subcount_b - length(mp_b), 1)];
 end
 
@@ -827,9 +827,9 @@ while i < length(singularities)
     % find an appropriate scale factor based on the constant occupying
     % this region.
     v = abs(timeseries(singularities(i)));
-    if v == 0 
+    if v == 0
         %just use a standard deviation of 1.
-        % It might seem better to look at surrounding windows, but at 
+        % It might seem better to look at surrounding windows, but at
         % that point, we have to recursively check those windows.
         scale = 1;
     elseif v < 1
@@ -844,25 +844,25 @@ while i < length(singularities)
     else
         scale = 1 + log(v);
     end
-   
+
     c = 1/64;
     % c is just to ensure this doesn't perturb leading digits
     % in case this data provides a partial window for some normalizable
-    % section. Feel free to make it smaller or larger. 
+    % section. Feel free to make it smaller or larger.
     % The data variance dependent portion is handled by "scale".
     % 1/64 just happens to be a change in exponent only for any number
     % that doesn't hit the de-normal range. I used it for something close
     % to .01 to avoid perturbing leading digits for the most part.
     timeseries(i : j + subseqlen - 1) = timeseries(i : j + subseqlen - 1) + c * scale * randn(j + subseqlen - i, 1);
-    
+
     % If any kind of error happens here, this is the point where we give
     % up, as it becomes very difficult to achieve predictable results.
     if any(~isfinite(timeseries(i : j + subseqlen - 1)))
         error(fprintf('unable to fix missing spanning %d to %d\n', i, j));
     end
-    
+
     i = j + 1;
-    
+
 end
 
 end
@@ -889,6 +889,3 @@ for ia = 1 : amx
     end
 end
 end
-
-
-

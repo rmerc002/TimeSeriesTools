@@ -2,11 +2,16 @@ function [ts, dts, Seq, charValMapping, names] = TextToTimeseries(path,charValMa
 %UNTITLED3 Summary of this function goes here
 %   Detailed explanation goes here
 % path = '/Users/cdslug/Dropbox/Education/UCR/Research/0_Projects/Rastamat/Paper/GraphFiles/DNAWalkComparison/';
-if path(end-3:end) == '.txt' 
-    files = dir(path);
+
+if length(nargin) == 1
+    charValMapping = [];
+end
+
+[path,name,ext] = fileparts(path);
+if ext == '.txt' 
+    files = dir(fullfile(path,name+ext));
 else
-    path = strcat(path,'/');
-    files = dir(strcat(path,'*.txt'));
+    files = dir(fullfile(path,'*.txt'));
 end
 chars = '';
 charSums = zeros(size(files,1),4);
@@ -17,7 +22,7 @@ for index = 1:size(files,1)
 %     file.name;
     disp(file.name);
     names{index} = file.name;
-    txt = fileread(strcat(path,file.name));
+    txt = fileread(fullfile(path,file.name));
     txt = strtrim(txt);
     txt = lower(txt);
     Seq{index} = txt;
@@ -68,4 +73,7 @@ for fileIndex = 1:size(files,1)
 
     ts{fileIndex} = cumtrapz(dts{fileIndex});
 end
+
+end
+
 

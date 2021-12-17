@@ -1,0 +1,34 @@
+function [ypred] = classifyWithPlatoModel_OR(X, platoModel)
+    ypred = -1*ones(size(X,1),1);
+    numClasses = size(platoModel,1);
+
+    for sampleIndex = 1:size(X,1)
+        sample = X(sampleIndex,:);
+        closestClassIndex = NaN;
+        minDist = inf;
+        %%%test each plato of each class
+        for posClassIndex = 1:numClasses
+            for negClassIndex = 1:numClasses
+                if posClassIndex == negClassIndex
+                    continue;
+                end
+                numPlatos = size(platoModel{posClassIndex, negClassIndex},1);
+           classRMSE = 0;
+           for platoIndex = 1:numPlatos
+               if posClassIndex == platoIndex
+                   continue;
+               end
+               plato = platoModel{posClassIndex, platoIndex};
+               distanceProfile = real(MASS_V2(sample,plato));
+               dist = min(distanceProfile);
+               classRMSE = classRMSE + dist^2;
+           end
+           classRMSE = sqrt(classRMSE/numPlatos);
+           if classRMSE < minDist
+               minDist = classRMSE;
+               closestClassIndex = posClassIndex;
+           end
+        end
+        ypred(sampleIndex) = closestClassIndex; 
+    end
+end
