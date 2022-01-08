@@ -57,7 +57,7 @@ classdef OnlineNovelProfile
             
             obj.minBufferLength = obj.mm*3;
             obj.bufferStartIndex = 1;
-            obj.oldNewsAnnotation = []; %%% boolean
+            obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%% boolean
             obj.novlets = []; %%% dimension: (numNovlets, mm)
             obj.novletIndices = [];
             obj.novletNNIndices = [];
@@ -72,12 +72,14 @@ classdef OnlineNovelProfile
             obj.MP_AA_Indices(1:length(tempMP_AA_Indices)) = tempMP_AA_Indices;
         
             %%% Matrix profile AB-join between obj.positiveTS and obj.negativeTS
-            obj.MP_AB = nan(length(obj.positiveTS),1);
+            obj.MP_AB = 2*sqrt(obj.mm)*ones(length(obj.positiveTS),1);
             tempobj.MP_AB = mpxABBA(obj.positiveTS, obj.negativeTS, obj.mm);
             obj.MP_AB(1:length(tempobj.MP_AB)) = clipMatrixProfileAmplitude(tempobj.MP_AB, obj.mm);
             
-          
+            obj.CP = zeros(length(obj.positiveTS),1);
+            obj.NP = zeros(length(obj.positiveTS),1);
 
+            
             obj.bufferStartIndex = 1;
 
             
@@ -124,19 +126,29 @@ classdef OnlineNovelProfile
                     endIndex = peakIndex + obj.mm - 1;
                     novlet = tSub(startIndex:endIndex);
                     obj.novlets(end+1,:) = novlet;
-                    obj.novletIndices(end+1) = obj.bufferStartIndex + peakIndex - 1;
-                    obj.novletNNIndices(end+1) = obj.bufferStartIndex + peakMP_AA_Index - 1;
+                    obj.novletNNIndices(end+1) = obj.bufferStartIndex + peakIndex - 1; %%% Swapped because we find the second instance
+                    obj.novletIndices(end+1) = peakMP_AA_Index;                        %%%   then look back to the first
+                    
                     obj.novletScores(end+1) = peakContrast;
                 end
 
-                %%%TODO: add NP profile caculated from CP and MP_AA_Indices
+                
                 activeEndIndex = obj.bufferStartIndex + length(MP_AASub)-1;
                 obj.MP_AA(obj.bufferStartIndex:activeEndIndex) = MP_AASub;
+                obj.MP_AA_Indices(obj.bufferStartIndex:activeEndIndex) = MP_AA_IndicesSub;
                 obj.MP_AB(obj.bufferStartIndex:activeEndIndex) = MP_ABSub;
                 obj.CP(obj.bufferStartIndex:activeEndIndex) = CPSub;
 
+                
                 obj.bufferStartIndex = obj.bufferStartIndex + peakIndex + obj.exclusionLength;
                 bufferLength = length(t) - (obj.bufferStartIndex - initialBufferStartIndex + 1) + 1;
+            end
+
+            %%% NP caculated from CP and MP_AA_Indices
+            for ii = initialBufferStartIndex: length(obj.NP)
+                if ~isnan(obj.MP_AA_Indices(ii))
+                    obj.NP(obj.MP_AA_Indices(ii)) = max(obj.NP(obj.MP_AA_Indices(ii)), obj.CP(ii));
+                end
             end
             
 
@@ -148,14 +160,19 @@ classdef OnlineNovelProfile
             else
                 t = reshape(t, length(t), 1);
                 obj.positiveTS = [obj.positiveTS; t];
+                obj.MP_AA = [obj.MP_AA;2*sqrt(obj.mm)*ones(length(t),1)];
+                obj.MP_AA_Indices = [obj.MP_AA_Indices;nan(length(t),1)];
+                obj.MP_AB = [obj.MP_AB;2*sqrt(obj.mm)*ones(length(t),1)];
+                obj.CP = [obj.CP;zeros(length(t),1)];
+                obj.NP = [obj.NP;zeros(length(t),1)];
             end
         
             numPossibleSubsequences = length(obj.positiveTS) - obj.mm + 1;
             %%% Assume length(obj.MP_AB) includes m-1 points after last valid value
-            currentBufferLength = length(obj.positiveTS) - length(obj.MP_AB);
+            currentBufferLength = length(obj.positiveTS) - obj.bufferStartIndex + 1;
             if currentBufferLength < obj.minBufferLength
                 numSamplesNeededForUpdate = obj.minBufferLength - currentBufferLength;
-                fprintf("New samples stored, but %d more samples required to act on buffer", numSamplesNeededForUpdate)
+                fprintf("New samples stored, but %d more samples required to act on buffer.\n", numSamplesNeededForUpdate)
                 return;
             end
         
@@ -225,104 +242,112 @@ classdef OnlineNovelProfile
         function plot(obj)
             %%%%%%%%%%%%%
             %%% PLOTS %%%
-            %%%%%%%%%%%%%
-            if forcePlot == true
-                
-                redColor = [0.73,0.05,0];
-                greenColor = [0,0.73,0.41]; 
-                blueColor = [0,0.29,0.73];
-                grayColor = [0.75,0.75,0.75];
-                lightGrayColor = [0.9, 0.9, 0.9];
-                lightBlueColor = [0.01, 0.83,0.99];
-                novletColor = [129/255, 51/255, 144/255];
-                novletTwinColor = [115/255, 170/255, 43/255];
-        
-                tsLength = length(obj.positiveTS);
-                maxTSLength = max(length(obj.positiveTS),length(obj.negativeTS));
-        
-                fig = figure('Name','Contrast Profile: Panel','NumberTitle','off'); 
-                set(gcf, 'Position', [0,100,2000,600]);
-                
-                tiledlayout(4,1);
-                
-                ax1 = nexttile;
-                plot(obj.negativeTS,'Color',redColor);
-                formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(-)}\\color{black}: Negative Time Series",redColor(1), redColor(2), redColor(3));
-                title(formattedTitle);
-                set(gca,'xtick',[1,length(obj.negativeTS)],'ytick',[], 'TickDir','out');
-                xlim([1,maxTSLength]);
-                box off;
-                
-                ax2 = nexttile;
-                hold on;
-                tempPos = obj.positiveTS;
-                tempPos(oldNewsAnnotation) = nan;
-                plot(tempPos);
-        
-                tempPos = obj.positiveTS;
-                tempPos(~oldNewsAnnotation) = nan;
-                plot(tempPos,'Color',lightGrayColor,'LineWidth',1);
-        
-                hold off;
-                xlim([1,maxTSLength]);
-                formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(+)}\\color{black}: Positive Time Series",blueColor(1),blueColor(2),blueColor(3));
-                title(formattedTitle);
-                set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[], 'TickDir','out');
-                xlim([1,maxTSLength]);
-                box off;
-                
-                ax3 = nexttile;
-                plot(obj.MP_AA,'Color',blueColor);
-                hold on;
-                plot(obj.MP_AB,'Color',redColor);
-                xlim([1,maxTSLength]);
-                ylim([0,sqrt(2*m)]);
-                formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}MP^{(+ -)} AB-join, \\color[rgb]{%f,%f,%f}MP^{(+ +)} Self-Join",redColor(1), redColor(2), redColor(3),blueColor(1),blueColor(2),blueColor(3));
-                title(formattedTitle);
-                set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,sqrt(2*m)], 'TickDir','out');
-                box off;
-                
-                ax4 = nexttile;
-                plot(obj.NP,'Color',grayColor);
-                hold on;
-                scatter(obj.novletNNIndices, ones(1,length(obj.novletIndices)),10,'MarkerFaceColor',novletColor,'MarkerEdgeColor',novletColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
-                scatter(obj.novletIndices, 1,10,'MarkerFaceColor',novletTwinColor,'MarkerEdgeColor',novletTwinColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0);
-        
-                hold off;
-                xlim([1,maxTSLength]);
-                ylim([0,1]);
-                formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Contrast Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Repeat",grayColor(1), grayColor(2), grayColor(3), novletColor(1), novletColor(2), novletColor(3), novletTwinColor(1), novletTwinColor(2), novletTwinColor(3));
-                title(formattedTitle);
-                set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,1], 'TickDir','out');
-                box off;
-                
-                
-                
-                linkaxes([ax1 ax2 ax3 ax4],'x')
-                
-                %%%Generating unique colors for classes when there can be many classes
-                %%% I will assume no more than 1000 classes
-                numColors = 1000;
-                colors = lines(numColors);
-                
-                figure;
-                hold on;
-                numNovlets = size(novlets,1);
-                for ki = 1:numNovlets
-                    tempTS = novlets(ki,:);
-                    tempMin = min(tempTS);
-                    tempMax = max(tempTS);
-                    tempRange = tempMax-tempMin;
-        
-                    plot(-ki + 0.9*(tempTS - tempMin)/tempRange);
-                end
-                hold off;
-                formattedTitle = sprintf("Top-%d Novlets", numNovlets);
-                title(formattedTitle);
-                set(gca,'xtick',[1,m],'ytick',[], 'TickDir','out');
-                xlim([0,m]);
-                box off;
+            %%%%%%%%%%%%%    
+            obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%%TODO: remove after supporting in main functions
+
+            redColor = [0.73,0.05,0];
+            greenColor = [0,0.73,0.41]; 
+            blueColor = [0,0.29,0.73];
+            grayColor = [0.75,0.75,0.75];
+            lightGrayColor = [0.9, 0.9, 0.9];
+            lightBlueColor = [0.01, 0.83,0.99];
+            novletColor = [129/255, 51/255, 144/255];
+            novletTwinColor = [115/255, 170/255, 43/255];
+    
+            tsLength = length(obj.positiveTS);
+            maxTSLength = max(length(obj.positiveTS),length(obj.negativeTS));
+    
+            fig = figure('Name','Contrast Profile: Panel','NumberTitle','off'); 
+            set(gcf, 'Position', [0,100,2000,600]);
+            
+            tiledlayout(5,1);
+            
+            ax1 = nexttile;
+            plot(obj.negativeTS,'Color',redColor);
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(-)}\\color{black}: Negative Time Series",redColor(1), redColor(2), redColor(3));
+            title(formattedTitle);
+            set(gca,'xtick',[1,length(obj.negativeTS)],'ytick',[], 'TickDir','out');
+            xlim([1,maxTSLength]);
+            box off;
+            
+            ax2 = nexttile;
+            hold on;
+            tempPos = obj.positiveTS;
+            tempPos(obj.oldNewsAnnotation) = nan;
+            plot(tempPos);
+    
+            tempPos = obj.positiveTS;
+            tempPos(~obj.oldNewsAnnotation) = nan;
+            plot(tempPos,'Color',lightGrayColor,'LineWidth',1);
+    
+            hold off;
+            xlim([1,maxTSLength]);
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(+)}\\color{black}: Positive Time Series",blueColor(1),blueColor(2),blueColor(3));
+            title(formattedTitle);
+            set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[], 'TickDir','out');
+            xlim([1,maxTSLength]);
+            box off;
+            
+            ax3 = nexttile;
+            plot(obj.MP_AA,'Color',blueColor);
+            hold on;
+            plot(obj.MP_AB,'Color',redColor);
+            xlim([1,maxTSLength]);
+            ylim([0,sqrt(2*obj.mm)]);
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}MP^{(+ -)} AB-join, \\color[rgb]{%f,%f,%f}MP^{(+ +)} Self-Join",redColor(1), redColor(2), redColor(3),blueColor(1),blueColor(2),blueColor(3));
+            title(formattedTitle);
+            set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,sqrt(2*obj.mm)], 'TickDir','out');
+            box off;
+            
+            ax4 = nexttile;
+            plot(obj.CP,'Color',grayColor);
+            xlim([1,maxTSLength]);
+            ylim([0,1]);
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Contrast Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Repeat",grayColor(1), grayColor(2), grayColor(3), novletColor(1), novletColor(2), novletColor(3), novletTwinColor(1), novletTwinColor(2), novletTwinColor(3));
+            title(formattedTitle);
+            set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,1], 'TickDir','out');
+            box off;
+            
+            ax5 = nexttile;
+            hold on;
+            plot([0,maxTSLength],[obj.noveltyThreshold, obj.noveltyThreshold],'--','Color',grayColor);
+            plot(obj.NP,'Color',grayColor);
+            scatter(obj.novletIndices, obj.novletScores ,10,'MarkerFaceColor',novletColor,'MarkerEdgeColor',novletColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
+%             scatter(obj.novletNNIndices, 1,10,'MarkerFaceColor',novletTwinColor,'MarkerEdgeColor',novletTwinColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0);
+            hold off;
+            xlim([1,maxTSLength]);
+            ylim([0,1]);
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Novel Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Repeat",grayColor(1), grayColor(2), grayColor(3), novletColor(1), novletColor(2), novletColor(3), novletTwinColor(1), novletTwinColor(2), novletTwinColor(3));
+            title(formattedTitle);
+            set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,1], 'TickDir','out');
+            box off;
+            
+            
+            linkaxes([ax1 ax2 ax3 ax4 ax5],'x')
+            
+            %%%Generating unique colors for classes when there can be many classes
+            %%% I will assume no more than 1000 classes
+            numColors = 1000;
+            colors = lines(numColors);
+            
+            figure;
+            hold on;
+            numNovlets = size(obj.novlets,1);
+            for ki = 1:numNovlets
+                tempTS = obj.novlets(ki,:);
+                tempMin = min(tempTS);
+                tempMax = max(tempTS);
+                tempRange = tempMax-tempMin;
+    
+                plot(-ki + 0.9*(tempTS - tempMin)/tempRange);
             end
+            hold off;
+            formattedTitle = sprintf("Top-%d Novlets", numNovlets);
+            title(formattedTitle);
+            set(gca,'xtick',[1,obj.mm],'ytick',[], 'TickDir','out');
+            xlim([0,obj.mm]);
+            box off;
+
             %%% end of plot
         end
     end
