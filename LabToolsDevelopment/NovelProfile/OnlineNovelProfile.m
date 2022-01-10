@@ -28,6 +28,8 @@ classdef OnlineNovelProfile
 
         minBufferLength
         oldNewsAnnotation
+        firstFoundAnnotation
+        secondFoundAnnotation
         bufferStartIndex
 
         novlets
@@ -58,7 +60,7 @@ classdef OnlineNovelProfile
             
             obj.minBufferLength = obj.mm*3;
             obj.bufferStartIndex = 1;
-            obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%% boolean
+            obj.oldNewsAnnotation = false(length(obj.positiveTS),1); %%% boolean
             obj.novlets = []; %%% dimension: (numNovlets, mm)
             obj.novletIndices = [];
             obj.novletNNIndices = [];
@@ -80,9 +82,6 @@ classdef OnlineNovelProfile
             obj.CP = zeros(length(obj.positiveTS),1);
             obj.preNP = zeros(length(obj.positiveTS),1);
             obj.NP = zeros(length(obj.positiveTS),1);
-
-            obj.oldNewsAnnotation = zeros(length(obj.positiveTS),1);
-
             
             obj.bufferStartIndex = 1;
 
@@ -139,6 +138,14 @@ classdef OnlineNovelProfile
                     obj.novletIndices(end+1) = peakMP_AA_Index;                        %%%   then look back to the first
                     
                     obj.novletScores(end+1) = peakContrast;
+
+                    startIndex = obj.bufferStartIndex + peakIndex - 1;
+                    endIndex = startIndex + obj.mm - 1;
+                    obj.oldNewsAnnotation(startIndex: endIndex) = true;
+
+                    startIndex = peakMP_AA_Index;
+                    endIndex = startIndex + obj.mm - 1;
+                    obj.oldNewsAnnotation(startIndex: endIndex) = true;
                 end
 
                 
@@ -157,12 +164,20 @@ classdef OnlineNovelProfile
             %%% NP caculated from CP and MP_AA_Indices
             for ii = initialBufferStartIndex: length(obj.NP)
                 if ~isnan(obj.MP_AA_Indices(ii))
-                    obj.NP(obj.MP_AA_Indices(ii)) = max(obj.NP(obj.MP_AA_Indices(ii)), obj.CP(ii));
+                    obj.NP(obj.MP_AA_Indices(ii)) = max(obj.NP(obj.MP_AA_Indices(ii)), obj.preNP(ii));
                 end
             end
             
+%             for ii = initialBufferStartIndex:activeEndIndex
+%                 if obj.CP(ii) > 0.1 && obj.preNP(ii) < obj.noveltyThreshold
+%                     obj.oldNewsAnnotation(ii:ii+obj.mm-1) = true;
+%                 end
+%             end
+            %%%When the contrast cannot possibly rise above the threshold
             for ii = initialBufferStartIndex:activeEndIndex
-                obj.oldNewsAnnotation(ii) = obj.preNP(ii) > 0.1 && obj.NP(ii) < obj.noveltyThreshold;
+                if obj.MP_AB(ii) < obj.noveltyThreshold*sqrt(2*obj.mm)
+                    obj.oldNewsAnnotation(ii:ii+obj.mm-1) = true;
+                end
             end
             
 
@@ -179,7 +194,7 @@ classdef OnlineNovelProfile
                 obj.MP_AB = [obj.MP_AB;2*sqrt(obj.mm)*ones(length(t),1)];
                 obj.CP = [obj.CP;zeros(length(t),1)];
                 obj.NP = [obj.NP;zeros(length(t),1)];
-                obj.oldNewsAnnotation = [obj.oldNewsAnnotation, zeros(length(t),1)];
+                obj.oldNewsAnnotation = [obj.oldNewsAnnotation, false(length(t),1)];
             end
         
 %             numPossibleSubsequences = length(obj.positiveTS) - obj.mm + 1;
@@ -258,7 +273,7 @@ classdef OnlineNovelProfile
             %%%%%%%%%%%%%
             %%% PLOTS %%%
             %%%%%%%%%%%%%    
-            obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%%TODO: remove after supporting in main functions
+%             obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%%TODO: remove after supporting in main functions
 
             redColor = [0.73,0.05,0];
 %             greenColor = [0,0.73,0.41]; 
