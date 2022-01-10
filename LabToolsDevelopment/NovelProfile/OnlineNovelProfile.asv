@@ -23,6 +23,7 @@ classdef OnlineNovelProfile
         MP_AA_Indices
         MP_AB
         CP % Contrast Profile
+        preNP %Highlights seconds instance of behavior
         NP % Novlet Profile
 
         minBufferLength
@@ -77,7 +78,10 @@ classdef OnlineNovelProfile
             obj.MP_AB(1:length(tempobj.MP_AB)) = clipMatrixProfileAmplitude(tempobj.MP_AB, obj.mm);
             
             obj.CP = zeros(length(obj.positiveTS),1);
+            obj.preNP = zeros(length(obj.positiveTS),1);
             obj.NP = zeros(length(obj.positiveTS),1);
+
+            obj.oldNewsAnnotation = zeros(length(obj.positiveTS),1);
 
             
             obj.bufferStartIndex = 1;
@@ -97,23 +101,28 @@ classdef OnlineNovelProfile
                 startIndexActionWindow = bufferIndex;
                 endIndexActionWindow = min(length(obj.positiveTS), startIndexActionWindow + obj.minBufferLength - 1);
                 tSub = t(startIndexActionWindow:endIndexActionWindow);
-                MP_ABSub = MP_AB(startIndexActionWindow:endIndexActionWindow);
+                MP_ABSubOrig = MP_AB(startIndexActionWindow:endIndexActionWindow);
+                MP_ABSubUpdated = MP_ABSubOrig;
                 MP_AASub = MP_AA(startIndexActionWindow:endIndexActionWindow);
                 MP_AA_IndicesSub = MP_AA_Indices(startIndexActionWindow:endIndexActionWindow);
+
                 %%% Update the MP_AB here
                 for jj = 1:size(obj.novlets,1)
                     novlet = obj.novlets(jj, :)';
                     newMP_AB = real(MASS_V2(tSub, novlet)); %%%TODO: verify if this overlap is correct
                     newMP_AB = clipMatrixProfileAmplitude(newMP_AB, obj.mm); 
-                    MP_ABSub(1:length(newMP_AB)) = min(MP_ABSub(1:length(newMP_AB)), newMP_AB);
+                    MP_ABSubUpdated(1:length(newMP_AB)) = min(MP_ABSubUpdated(1:length(newMP_AB)), newMP_AB);
                 end
                 
-                CPSub = MP_ABSub - MP_AASub;
+                CPSub = MP_ABSubOrig - MP_AASub;
                 CPSub = normalizeContrastProfileAmplitude(CPSub, obj.mm);
-                [peakIndices, peakValues] = exclusionZonePeaks(CPSub, obj.mm, obj.exclusionLength);
+
+                preNPSub = MP_ABSubOrig - MP_AASub;
+                preNPSub = normalizeContrastProfileAmplitude(preNPSub, obj.mm);
+                [peakIndices, ~] = exclusionZonePeaks(preNPSub, obj.mm, obj.exclusionLength);
                 peakIndex = peakIndices(1);
 
-                peakMP_AB = MP_ABSub(peakIndex);
+                peakMP_AB = MP_ABSubUpdated(peakIndex);
                 peakMP_AA = MP_AASub(peakIndex);
                 peakMP_AA_Index = MP_AA_IndicesSub(peakIndex);
 
@@ -126,8 +135,8 @@ classdef OnlineNovelProfile
                     endIndex = peakIndex + obj.mm - 1;
                     novlet = tSub(startIndex:endIndex);
                     obj.novlets(end+1,:) = novlet;
-                    obj.novletNNIndices(end+1) = obj.bufferStartIndex + peakIndex - 1; %%% Swapped because we find the second instanc
-                    obj.novletIndices(end+1) = peakMP_AA_Index;
+                    obj.novletNNIndices(end+1) = obj.bufferStartIndex + peakIndex - 1; %%% Swapped because we find the second instance
+                    obj.novletIndices(end+1) = peakMP_AA_Index;                        %%%   then look back to the first
                     
                     obj.novletScores(end+1) = peakContrast;
                 end
@@ -136,8 +145,9 @@ classdef OnlineNovelProfile
                 activeEndIndex = obj.bufferStartIndex + length(MP_AASub)-1;
                 obj.MP_AA(obj.bufferStartIndex:activeEndIndex) = MP_AASub;
                 obj.MP_AA_Indices(obj.bufferStartIndex:activeEndIndex) = MP_AA_IndicesSub;
-                obj.MP_AB(obj.bufferStartIndex:activeEndIndex) = MP_ABSub;
+                obj.MP_AB(obj.bufferStartIndex:activeEndIndex) = MP_ABSubUpdated;
                 obj.CP(obj.bufferStartIndex:activeEndIndex) = CPSub;
+                obj.preNP(obj.bufferStartIndex:activeEndIndex) = preNPSub;
 
                 
                 obj.bufferStartIndex = obj.bufferStartIndex + peakIndex + obj.exclusionLength;
@@ -150,6 +160,8 @@ classdef OnlineNovelProfile
                     obj.NP(obj.MP_AA_Indices(ii)) = max(obj.NP(obj.MP_AA_Indices(ii)), obj.CP(ii));
                 end
             end
+
+            obj.oldNewsAnnotation(obj.bufferStartIndex:activeEndIndex) = obj.preNP(obj.bufferStartIndex:activeEndIndex) > obj.noveltyThreshold && obj.NP(obj.bufferStartIndex:activeEndIndex) < obj.noveltyThreshold;
             
 
         end
@@ -165,9 +177,10 @@ classdef OnlineNovelProfile
                 obj.MP_AB = [obj.MP_AB;2*sqrt(obj.mm)*ones(length(t),1)];
                 obj.CP = [obj.CP;zeros(length(t),1)];
                 obj.NP = [obj.NP;zeros(length(t),1)];
+                obj.oldNewsAnnotation = [obj.oldNewsAnnotation, zeros(length(t),1)];
             end
         
-            numPossibleSubsequences = length(obj.positiveTS) - obj.mm + 1;
+%             numPossibleSubsequences = length(obj.positiveTS) - obj.mm + 1;
             %%% Assume length(obj.MP_AB) includes m-1 points after last valid value
             currentBufferLength = length(obj.positiveTS) - obj.bufferStartIndex + 1;
             if currentBufferLength < obj.minBufferLength
@@ -196,7 +209,7 @@ classdef OnlineNovelProfile
                     tempNovletDist = clipMatrixProfileAmplitude(tempNovletDist, obj.mm);
                     novletDP(novletIndex,1:numSubsequences) = tempNovletDist;
                 end
-                [novletMinDist, novletIndices] = min(novletDP,[],1);
+                [novletMinDist, ~] = min(novletDP,[],1);
                 novletMinDist = reshape(novletMinDist, unprocessedLength, 1);
     
                 newMP_AB = min(newMP_AB, novletMinDist);
@@ -246,18 +259,18 @@ classdef OnlineNovelProfile
             obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%%TODO: remove after supporting in main functions
 
             redColor = [0.73,0.05,0];
-            greenColor = [0,0.73,0.41]; 
+%             greenColor = [0,0.73,0.41]; 
             blueColor = [0,0.29,0.73];
             grayColor = [0.75,0.75,0.75];
             lightGrayColor = [0.9, 0.9, 0.9];
-            lightBlueColor = [0.01, 0.83,0.99];
+%             lightBlueColor = [0.01, 0.83,0.99];
             novletColor = [129/255, 51/255, 144/255];
             novletTwinColor = [115/255, 170/255, 43/255];
     
-            tsLength = length(obj.positiveTS);
+%             tsLength = length(obj.positiveTS);
             maxTSLength = max(length(obj.positiveTS),length(obj.negativeTS));
     
-            fig = figure('Name','Contrast Profile: Panel','NumberTitle','off'); 
+            figure('Name','Contrast Profile: Panel','NumberTitle','off'); 
             set(gcf, 'Position', [0,100,2000,600]);
             
             tiledlayout(5,1);
@@ -327,8 +340,8 @@ classdef OnlineNovelProfile
             
             %%%Generating unique colors for classes when there can be many classes
             %%% I will assume no more than 1000 classes
-            numColors = 1000;
-            colors = lines(numColors);
+%             numColors = 1000;
+%             colors = lines(numColors);
             
             figure;
             hold on;
@@ -363,7 +376,7 @@ function [cp] = normalizeContrastProfileAmplitude(cp, m)
     %discard negative values. These occur when a subsequence in T+ has a
     %closer nearest neighbor in T-. It's not a behavior of interest for
     %this research.
-    cp = nanmax(0, cp); 
+    cp = max(0, cp,'omitnan'); 
 end
 
 
