@@ -54,7 +54,7 @@ classdef OnlineNovelProfile
             
             obj.positiveTS = reshape(positiveTS, length(positiveTS), 1);
             obj.mm = mm;
-            obj.exclusionLength = obj.mm;
+            obj.exclusionLength = ceil(obj.mm/2);
             obj.negativeTS = reshape(negativeTS, length(negativeTS), 1);
             obj.noveltyThreshold = noveltyThreshold;
             
@@ -69,7 +69,7 @@ classdef OnlineNovelProfile
             %%% Matrix profile self-join using obj.positiveTS
             obj.MP_AA = nan(length(obj.positiveTS),1);
             obj.MP_AA_Indices = nan(length(obj.positiveTS),1);
-            [~, tempMP_AA, ~, tempMP_AA_Indices] = mpxLeftRight(obj.positiveTS, ceil(obj.mm/2), obj.mm);
+            [~, tempMP_AA, ~, tempMP_AA_Indices] = mpxLeftRight(obj.positiveTS, obj.exclusionLength, obj.mm);
             tempMP_AA = real(tempMP_AA);
             obj.MP_AA(1:length(tempMP_AA)) = clipMatrixProfileAmplitude(tempMP_AA, obj.mm);
             obj.MP_AA_Indices(1:length(tempMP_AA_Indices)) = tempMP_AA_Indices;
@@ -130,12 +130,12 @@ classdef OnlineNovelProfile
                 peakContrast = normalizeContrastProfileAmplitude(peakContrast, obj.mm);
 
                 if peakContrast > obj.noveltyThreshold
-                    startIndex = peakIndex;
-                    endIndex = peakIndex + obj.mm - 1;
-                    novlet = tSub(startIndex:endIndex);
-                    obj.novlets(end+1,:) = novlet;
                     obj.novletNNIndices(end+1) = obj.bufferStartIndex + peakIndex - 1; %%% Swapped because we find the second instance
                     obj.novletIndices(end+1) = peakMP_AA_Index;                        %%%   then look back to the first
+                    startIndex = peakMP_AA_Index;
+                    endIndex = startIndex + obj.mm - 1;
+                    novlet = obj.positiveTS(startIndex:endIndex);
+                    obj.novlets(end+1,:) = novlet;
                     
                     obj.novletScores(end+1) = peakContrast;
 
@@ -246,7 +246,7 @@ classdef OnlineNovelProfile
 %             newMP_AA(1:length(tempLeftAA)) = tempLeftAA;
             
             [tempAB, ~, tempABIndices] = mpx_ABBA_v2(unprocessedPositiveTS, obj.positiveTS(1:obj.bufferStartIndex-1), obj.mm);
-            [~, tempLeftAA, ~, tempLeftAAIndices] = mpxLeftRight(unprocessedPositiveTS, ceil(obj.mm/2), obj.mm);
+            [~, tempLeftAA, ~, tempLeftAAIndices] = mpxLeftRight(unprocessedPositiveTS, obj.exclusionLength, obj.mm);
             tempLeftAAIndices = tempLeftAAIndices + obj.bufferStartIndex -1;
             
             for ii = 1:numSubsequences
@@ -281,8 +281,8 @@ classdef OnlineNovelProfile
             grayColor = [0.75,0.75,0.75];
             lightGrayColor = [0.9, 0.9, 0.9];
 %             lightBlueColor = [0.01, 0.83,0.99];
-            novletColor = [129/255, 51/255, 144/255];
-            novletTwinColor = [115/255, 170/255, 43/255];
+            novletColor = [143/255, 226/255, 227/255];
+            novletTwinColor = [227/255, 143/255, 219/255];
     
 %             tsLength = length(obj.positiveTS);
             maxTSLength = max(length(obj.positiveTS),length(obj.negativeTS));
@@ -302,13 +302,33 @@ classdef OnlineNovelProfile
             
             ax2 = nexttile;
             hold on;
+            %%% Unmatched
             tempPos = obj.positiveTS;
             tempPos(obj.oldNewsAnnotation) = nan;
-            plot(tempPos);
+            plot(tempPos, 'LineWidth',1.5);
     
+            %%% Duplicate and discarded
             tempPos = obj.positiveTS;
             tempPos(~obj.oldNewsAnnotation) = nan;
             plot(tempPos,'Color',lightGrayColor,'LineWidth',1);
+
+            %%% Matched Second instance
+            for ii = 1:length(obj.novletIndices)
+                startIndex = obj.novletNNIndices(ii);
+                endIndex = startIndex + obj.mm;
+                subsequence = obj.positiveTS(startIndex:endIndex);
+                plot(startIndex:endIndex, subsequence,'Color',novletTwinColor,'LineWidth',1)
+            end
+            
+            %%% Matched First instance
+            for ii = 1:length(obj.novletIndices)
+                startIndex = obj.novletIndices(ii);
+                endIndex = startIndex + obj.mm;
+                subsequence = obj.positiveTS(startIndex:endIndex);
+                plot(startIndex:endIndex, subsequence,'Color',novletColor,'LineWidth',1)
+            end
+
+            
     
             hold off;
             xlim([1,maxTSLength]);
