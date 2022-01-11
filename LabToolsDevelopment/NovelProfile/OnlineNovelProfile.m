@@ -18,6 +18,7 @@ classdef OnlineNovelProfile
         negativeTS
         mm % Subsequence length
         exclusionLength
+        contextLength
         noveltyThreshold
         MP_AA
         MP_AA_Indices
@@ -55,6 +56,7 @@ classdef OnlineNovelProfile
             obj.positiveTS = reshape(positiveTS, length(positiveTS), 1);
             obj.mm = mm;
             obj.exclusionLength = ceil(obj.mm/2);
+            obj.contextLength = ceil(obj.mm);
             obj.negativeTS = reshape(negativeTS, length(negativeTS), 1);
             obj.noveltyThreshold = noveltyThreshold;
             
@@ -108,7 +110,7 @@ classdef OnlineNovelProfile
                 %%% Update the MP_AB here
                 for jj = 1:size(obj.novlets,1)
                     novlet = obj.novlets(jj, :)';
-                    newMP_AB = real(MASS_V2(tSub, novlet)); %%%TODO: verify if this overlap is correct
+                    newMP_AB = mpxABBA(tSub, novlet, obj.mm); %%%TODO: verify if this overlap is correct
                     newMP_AB = clipMatrixProfileAmplitude(newMP_AB, obj.mm); 
                     MP_ABSubUpdated(1:length(newMP_AB)) = min(MP_ABSubUpdated(1:length(newMP_AB)), newMP_AB);
                 end
@@ -132,9 +134,7 @@ classdef OnlineNovelProfile
                 if peakContrast > obj.noveltyThreshold
                     obj.novletNNIndices(end+1) = obj.bufferStartIndex + peakIndex - 1; %%% Swapped because we find the second instance
                     obj.novletIndices(end+1) = peakMP_AA_Index;                        %%%   then look back to the first
-                    startIndex = peakMP_AA_Index;
-                    endIndex = startIndex + obj.mm - 1;
-                    novlet = obj.positiveTS(startIndex:endIndex);
+                    novlet = obj.getSubsequenceWithContext(peakMP_AA_Index, obj.contextLength);
                     obj.novlets(end+1,:) = novlet;
                     
                     obj.novletScores(end+1) = peakContrast;
@@ -221,7 +221,7 @@ classdef OnlineNovelProfile
             
             if numNovlets > 0
                 for novletIndex = 1:numNovlets
-                    novlet = reshape(obj.novlets(novletIndex,:), obj.mm, 1);
+                    novlet = reshape(obj.novlets(novletIndex,:), obj.mm + 2*obj.contextLength, 1);
                     tempNovletDist = real(MASS_V2(unprocessedPositiveTS, novlet));
                     tempNovletDist = clipMatrixProfileAmplitude(tempNovletDist, obj.mm);
                     novletDP(novletIndex,1:numSubsequences) = tempNovletDist;
@@ -268,6 +268,22 @@ classdef OnlineNovelProfile
             obj.bufferStartIndex = obj.bufferStartIndex + 2*obj.exclusionLength;
             obj = discoverNovlets(obj, unprocessedPositiveTS(2*obj.exclusionLength+1:end), newMP_AB(2*obj.exclusionLength+1:end), newMP_AA(2*obj.exclusionLength+1:end), newMP_AA_Indices(2*obj.exclusionLength+1:end));
             %%%end of update
+        end
+
+        function subsequenceWithContext = getSubsequenceWithContext(obj, subsequenceIndex, contextLength)
+            startIndex = subsequenceIndex - contextLength; %%% need to handle when exclusion length is at the start or end
+            endIndex = startIndex + obj.mm - 1 + contextLength;
+
+            indicesRaw = startIndex:endIndex;
+            indices = indicesRaw - 1;
+            indices = mod(indices, length(obj.positiveTS));
+            indices = indices + 1;
+
+            subsequenceWithContext = obj.positiveTS(indices);
+            
+            subsequenceWithContext(indicesRaw <= 0) = nan;
+            subsequenceWithContext(indicesRaw > length(obj.positiveTS)) = nan;
+
         end
         function plot(obj)
             %%%%%%%%%%%%%
