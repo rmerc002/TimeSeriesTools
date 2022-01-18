@@ -46,21 +46,21 @@ classdef OnlineNovelProfile
             if nargin < 2
                 mm = 10;
             end
-            if nargin < 3
+            if nargin < 3 || length(negativeTS) < mm
                 negativeTS = [];
             end
             if nargin < 4
                 noveltyThreshold = 0.1;
             end
             
-            obj.positiveTS = reshape(positiveTS, length(positiveTS), 1);
+%             obj.positiveTS = reshape(positiveTS, length(positiveTS), 1);
             obj.mm = mm;
-            obj.exclusionLength = ceil(obj.mm/2);
+            obj.exclusionLength = ceil(obj.mm);
             obj.contextLength = ceil(obj.mm);
             obj.negativeTS = reshape(negativeTS, length(negativeTS), 1);
             obj.noveltyThreshold = noveltyThreshold;
             
-            obj.minBufferLength = obj.mm*3;
+            obj.minBufferLength = obj.mm*2;
             obj.bufferStartIndex = 1;
             obj.oldNewsAnnotation = false(length(obj.positiveTS),1); %%% boolean
             obj.novlets = []; %%% dimension: (numNovlets, mm)
@@ -69,27 +69,27 @@ classdef OnlineNovelProfile
             obj.novletScores = [];
 
             %%% Matrix profile self-join using obj.positiveTS
-            obj.MP_AA = nan(length(obj.positiveTS),1);
-            obj.MP_AA_Indices = nan(length(obj.positiveTS),1);
-            [~, tempMP_AA, ~, tempMP_AA_Indices] = mpxLeftRight(obj.positiveTS, obj.exclusionLength, obj.mm);
-            tempMP_AA = real(tempMP_AA);
-            obj.MP_AA(1:length(tempMP_AA)) = clipMatrixProfileAmplitude(tempMP_AA, obj.mm);
-            obj.MP_AA_Indices(1:length(tempMP_AA_Indices)) = tempMP_AA_Indices;
-        
-            %%% Matrix profile AB-join between obj.positiveTS and obj.negativeTS
-            obj.MP_AB = 2*sqrt(obj.mm)*ones(length(obj.positiveTS),1);
-            tempobj.MP_AB = mpxABBA(obj.positiveTS, obj.negativeTS, obj.mm);
-            obj.MP_AB(1:length(tempobj.MP_AB)) = clipMatrixProfileAmplitude(tempobj.MP_AB, obj.mm);
-            
-            obj.CP = zeros(length(obj.positiveTS),1);
-            obj.preNP = zeros(length(obj.positiveTS),1);
-            obj.NP = zeros(length(obj.positiveTS),1);
+%             obj.MP_AA = nan(length(obj.positiveTS),1);
+%             obj.MP_AA_Indices = nan(length(obj.positiveTS),1);
+%             [~, tempMP_AA, ~, tempMP_AA_Indices] = mpxLeftRight(obj.positiveTS, obj.exclusionLength, obj.mm);
+%             tempMP_AA = real(tempMP_AA);
+%             obj.MP_AA(1:length(tempMP_AA)) = clipMatrixProfileAmplitude(tempMP_AA, obj.mm);
+%             obj.MP_AA_Indices(1:length(tempMP_AA_Indices)) = tempMP_AA_Indices;
+%         
+%             %%% Matrix profile AB-join between obj.positiveTS and obj.negativeTS
+%             obj.MP_AB = 2*sqrt(obj.mm)*ones(length(obj.positiveTS),1);
+%             tempobj.MP_AB = mpxABBA(obj.positiveTS, obj.negativeTS, obj.mm);
+%             obj.MP_AB(1:length(tempobj.MP_AB)) = clipMatrixProfileAmplitude(tempobj.MP_AB, obj.mm);
+%             
+%             obj.CP = zeros(length(obj.positiveTS),1);
+%             obj.preNP = zeros(length(obj.positiveTS),1);
+%             obj.NP = zeros(length(obj.positiveTS),1);
             
             obj.bufferStartIndex = 1;
 
-            
-            obj = discoverNovlets(obj, positiveTS, obj.MP_AB, obj.MP_AA, obj.MP_AA_Indices);
-        end
+            obj = obj.update(positiveTS);
+
+            end
 
         function obj = discoverNovlets(obj, t, MP_AB, MP_AA, MP_AA_Indices)
             t = reshape(t, length(t), 1);
@@ -174,7 +174,7 @@ classdef OnlineNovelProfile
 %                 end
 %             end
             %%%When the contrast cannot possibly rise above the threshold
-            for ii = initialBufferStartIndex:activeEndIndex
+            for ii = initialBufferStartIndex:length(obj.MP_AB)
                 if obj.MP_AB(ii) < obj.noveltyThreshold*sqrt(2*obj.mm)
                     obj.oldNewsAnnotation(ii:ii+obj.mm-1) = true;
                 end
@@ -194,7 +194,7 @@ classdef OnlineNovelProfile
                 obj.MP_AB = [obj.MP_AB;2*sqrt(obj.mm)*ones(length(t),1)];
                 obj.CP = [obj.CP;zeros(length(t),1)];
                 obj.NP = [obj.NP;zeros(length(t),1)];
-                obj.oldNewsAnnotation = [obj.oldNewsAnnotation, false(length(t),1)];
+                obj.oldNewsAnnotation = [obj.oldNewsAnnotation; false(length(t),1)];
             end
         
 %             numPossibleSubsequences = length(obj.positiveTS) - obj.mm + 1;
@@ -202,7 +202,7 @@ classdef OnlineNovelProfile
             currentBufferLength = length(obj.positiveTS) - obj.bufferStartIndex + 1;
             if currentBufferLength < obj.minBufferLength
                 numSamplesNeededForUpdate = obj.minBufferLength - currentBufferLength;
-                fprintf("New samples stored, but %d more samples required to act on buffer.\n", numSamplesNeededForUpdate)
+%                 fprintf("New samples stored, but %d more samples required to act on buffer.\n", numSamplesNeededForUpdate)
                 return;
             end
         
@@ -212,25 +212,29 @@ classdef OnlineNovelProfile
 
             numSubsequences = unprocessedLength - obj.mm + 1;
 
-            newMP_AB = nan(unprocessedLength,1);
-            tempMP_AB = mpx_ABBA_v2(unprocessedPositiveTS, obj.negativeTS, obj.mm);
+            newMP_AB = sqrt(2*obj.mm)*ones(unprocessedLength,1);
+            if length(obj.negativeTS) >= obj.mm
+                tempMP_AB = mpx_ABBA_v2(unprocessedPositiveTS, obj.negativeTS, obj.mm);
+            else
+                tempMP_AB = [];
+            end
             newMP_AB(1:length(tempMP_AB)) = tempMP_AB;
             %%% Start Novlet Comparisons
             numNovlets = size(obj.novlets,1);
             novletDP = sqrt(2*obj.mm)*ones(numNovlets,unprocessedLength);
             
-            if numNovlets > 0
-                for novletIndex = 1:numNovlets
-                    novlet = reshape(obj.novlets(novletIndex,:), obj.mm + 2*obj.contextLength, 1);
-                    tempNovletDist = real(MASS_V2(unprocessedPositiveTS, novlet));
-                    tempNovletDist = clipMatrixProfileAmplitude(tempNovletDist, obj.mm);
-                    novletDP(novletIndex,1:numSubsequences) = tempNovletDist;
-                end
-                [novletMinDist, ~] = min(novletDP,[],1);
-                novletMinDist = reshape(novletMinDist, unprocessedLength, 1);
-    
-                newMP_AB = min(newMP_AB, novletMinDist);
-            end
+%             if numNovlets > 0
+%                 for novletIndex = 1:numNovlets
+%                     novlet = reshape(obj.novlets(novletIndex,:), obj.mm + 2*obj.contextLength, 1);
+%                     tempNovletDist = real(MASS_V2(unprocessedPositiveTS, novlet));
+%                     tempNovletDist = clipMatrixProfileAmplitude(tempNovletDist, obj.mm);
+%                     novletDP(novletIndex,1:numSubsequences) = tempNovletDist;
+%                 end
+%                 [novletMinDist, ~] = min(novletDP,[],1);
+%                 novletMinDist = reshape(novletMinDist, unprocessedLength, 1);
+%     
+%                 newMP_AB = min(newMP_AB, novletMinDist);
+%             end
 
 
             %%%Extending the left only matrix profile can be done by
@@ -244,8 +248,10 @@ classdef OnlineNovelProfile
 %             [~, tempLeftAA, ~, tempLeftAAIndices] = mpxLeftRight(obj.positiveTS, ceil(obj.mm/2), obj.mm);
 %             tempLeftAA = tempLeftAA(obj.bufferStartIndex:end);
 %             newMP_AA(1:length(tempLeftAA)) = tempLeftAA;
-            
-            [tempAB, ~, tempABIndices] = mpx_ABBA_v2(unprocessedPositiveTS, obj.positiveTS(1:obj.bufferStartIndex-1), obj.mm);
+            tempAB = nan(length(unprocessedPositiveTS),1);
+            if obj.bufferStartIndex > obj.mm
+                [tempAB, ~, tempABIndices] = mpx_ABBA_v2(unprocessedPositiveTS, obj.positiveTS(1:obj.bufferStartIndex-1), obj.mm);
+            end
             [~, tempLeftAA, ~, tempLeftAAIndices] = mpxLeftRight(unprocessedPositiveTS, obj.exclusionLength, obj.mm);
             tempLeftAAIndices = tempLeftAAIndices + obj.bufferStartIndex -1;
             
@@ -265,14 +271,16 @@ classdef OnlineNovelProfile
                 end
             end
 
-            obj.bufferStartIndex = obj.bufferStartIndex + 2*obj.exclusionLength;
-            obj = discoverNovlets(obj, unprocessedPositiveTS(2*obj.exclusionLength+1:end), newMP_AB(2*obj.exclusionLength+1:end), newMP_AA(2*obj.exclusionLength+1:end), newMP_AA_Indices(2*obj.exclusionLength+1:end));
+%             obj.bufferStartIndex = obj.bufferStartIndex + 2*obj.exclusionLength;
+%             obj = discoverNovlets(obj, unprocessedPositiveTS(2*obj.exclusionLength+1:end), newMP_AB(2*obj.exclusionLength+1:end), newMP_AA(2*obj.exclusionLength+1:end), newMP_AA_Indices(2*obj.exclusionLength+1:end));
+            obj = discoverNovlets(obj, unprocessedPositiveTS, newMP_AB, newMP_AA, newMP_AA_Indices);
+
             %%%end of update
         end
 
         function subsequenceWithContext = getSubsequenceWithContext(obj, subsequenceIndex, contextLength)
             startIndex = subsequenceIndex - contextLength; %%% need to handle when exclusion length is at the start or end
-            endIndex = startIndex + obj.mm - 1 + contextLength;
+            endIndex = subsequenceIndex + obj.mm - 1 + contextLength;
 
             indicesRaw = startIndex:endIndex;
             indices = indicesRaw - 1;
@@ -289,7 +297,7 @@ classdef OnlineNovelProfile
             %%%%%%%%%%%%%
             %%% PLOTS %%%
             %%%%%%%%%%%%%    
-%             obj.oldNewsAnnotation = ones(length(obj.positiveTS),1); %%%TODO: remove after supporting in main functions
+            obj.oldNewsAnnotation = false(length(obj.positiveTS),1); %%%TODO: remove after supporting in main functions
 
             redColor = [0.73,0.05,0];
 %             greenColor = [0,0.73,0.41]; 
@@ -298,7 +306,9 @@ classdef OnlineNovelProfile
             lightGrayColor = [0.9, 0.9, 0.9];
 %             lightBlueColor = [0.01, 0.83,0.99];
             novletColor = [143/255, 226/255, 227/255];
-            novletTwinColor = [227/255, 143/255, 219/255];
+            novletLabelColor = [56/255, 226/255, 235/255];
+            novletNNColor = [227/255, 143/255, 219/255];
+            novletNNLabelColor = [235/255, 56/255, 217/255];
     
 %             tsLength = length(obj.positiveTS);
             maxTSLength = max(length(obj.positiveTS),length(obj.negativeTS));
@@ -309,10 +319,12 @@ classdef OnlineNovelProfile
             tiledlayout(5,1);
             
             ax1 = nexttile;
-            plot(obj.negativeTS,'Color',redColor);
-            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(-)}\\color{black}: Negative Time Series",redColor(1), redColor(2), redColor(3));
-            title(formattedTitle);
-            set(gca,'xtick',[1,length(obj.negativeTS)],'ytick',[], 'TickDir','out');
+            if ~isempty(obj.negativeTS)
+                plot(obj.negativeTS,'Color',redColor);
+                formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}T^{(-)}\\color{black}: Negative Time Series",redColor(1), redColor(2), redColor(3));
+                title(formattedTitle);
+                set(gca,'xtick',[1,length(obj.negativeTS)],'ytick',[], 'TickDir','out');
+            end
             xlim([1,maxTSLength]);
             box off;
             
@@ -321,7 +333,9 @@ classdef OnlineNovelProfile
             %%% Unmatched
             tempPos = obj.positiveTS;
             tempPos(obj.oldNewsAnnotation) = nan;
-            plot(tempPos, 'LineWidth',1.5);
+%             plot(tempPos, 'LineWidth',1);
+            plot(tempPos);
+
     
             %%% Duplicate and discarded
             tempPos = obj.positiveTS;
@@ -333,7 +347,7 @@ classdef OnlineNovelProfile
                 startIndex = obj.novletNNIndices(ii);
                 endIndex = startIndex + obj.mm;
                 subsequence = obj.positiveTS(startIndex:endIndex);
-                plot(startIndex:endIndex, subsequence,'Color',novletTwinColor,'LineWidth',1)
+                plot(startIndex:endIndex, subsequence,'Color',novletNNColor,'LineWidth',1)
             end
             
             %%% Matched First instance
@@ -343,6 +357,9 @@ classdef OnlineNovelProfile
                 subsequence = obj.positiveTS(startIndex:endIndex);
                 plot(startIndex:endIndex, subsequence,'Color',novletColor,'LineWidth',1)
             end
+
+            scatter(obj.novletIndices, ones(length(obj.novletScores),1) ,20,'v','MarkerFaceColor',novletLabelColor,'MarkerEdgeColor',novletLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
+            scatter(obj.novletNNIndices, ones(length(obj.novletScores),1), 20,'v','MarkerFaceColor',novletNNLabelColor,'MarkerEdgeColor',novletNNLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
 
             
     
@@ -360,7 +377,7 @@ classdef OnlineNovelProfile
             plot(obj.MP_AB,'Color',redColor);
             xlim([1,maxTSLength]);
             ylim([0,sqrt(2*obj.mm)]);
-            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}MP^{(+ -)} AB-join, \\color[rgb]{%f,%f,%f}MP^{(+ +)} Self-Join",redColor(1), redColor(2), redColor(3),blueColor(1),blueColor(2),blueColor(3));
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}MP^{(+ -)} AB-join, \\color[rgb]{%f,%f,%f}MP^{(+ +)} Left Self-Join",redColor(1), redColor(2), redColor(3),blueColor(1),blueColor(2),blueColor(3));
             title(formattedTitle);
             set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,sqrt(2*obj.mm)], 'TickDir','out');
             box off;
@@ -369,7 +386,8 @@ classdef OnlineNovelProfile
             plot(obj.CP,'Color',grayColor);
             xlim([1,maxTSLength]);
             ylim([0,1]);
-            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Contrast Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Repeat",grayColor(1), grayColor(2), grayColor(3), novletColor(1), novletColor(2), novletColor(3), novletTwinColor(1), novletTwinColor(2), novletTwinColor(3));
+%             formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Contrast Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Repeat",grayColor(1), grayColor(2), grayColor(3), novletLabelColor(1), novletLabelColor(2), novletLabelColor(3), novletNNLabelColor(1), novletNNLabelColor(2), novletNNLabelColor(3));
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Left Contrast Profile",grayColor(1), grayColor(2), grayColor(3));
             title(formattedTitle);
             set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,1], 'TickDir','out');
             box off;
@@ -378,12 +396,12 @@ classdef OnlineNovelProfile
             hold on;
             plot([0,maxTSLength],[obj.noveltyThreshold, obj.noveltyThreshold],'--','Color',grayColor);
             plot(obj.NP,'Color',grayColor);
-            scatter(obj.novletIndices, obj.novletScores ,10,'MarkerFaceColor',novletColor,'MarkerEdgeColor',novletColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
-%             scatter(obj.novletNNIndices, 1,10,'MarkerFaceColor',novletTwinColor,'MarkerEdgeColor',novletTwinColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0);
+            scatter(obj.novletIndices, min(1, obj.novletScores*1.5) ,20,'v','MarkerFaceColor',novletLabelColor,'MarkerEdgeColor',novletLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
+            scatter(obj.novletNNIndices, ones(length(obj.novletScores),1), 20,'v','MarkerFaceColor',novletNNLabelColor,'MarkerEdgeColor',novletNNLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
             hold off;
             xlim([1,maxTSLength]);
             ylim([0,1]);
-            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Novel Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Repeat",grayColor(1), grayColor(2), grayColor(3), novletColor(1), novletColor(2), novletColor(3), novletTwinColor(1), novletTwinColor(2), novletTwinColor(3));
+            formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Novel Profile, \\color[rgb]{%f,%f,%f}First, \\color[rgb]{%f,%f,%f}Second",grayColor(1), grayColor(2), grayColor(3), novletLabelColor(1), novletLabelColor(2), novletLabelColor(3), novletNNLabelColor(1), novletNNLabelColor(2), novletNNLabelColor(3));
             title(formattedTitle);
             set(gca,'xtick',[1,length(obj.positiveTS)],'ytick',[0,1], 'TickDir','out');
             box off;
@@ -392,26 +410,39 @@ classdef OnlineNovelProfile
             linkaxes([ax1 ax2 ax3 ax4 ax5],'x')
             
             %%%Generating unique colors for classes when there can be many classes
-            %%% I will assume no more than 1000 classes
-%             numColors = 1000;
-%             colors = lines(numColors);
+            %%% I will assume no more than 1000 results
+            numColors = 1000;
+            colors = lines(numColors);
             
             figure;
             hold on;
             numNovlets = size(obj.novlets,1);
+            startIndex = obj.contextLength+1;
+            endIndex = startIndex + obj.mm - 1;
             for ki = 1:numNovlets
-                tempTS = obj.novlets(ki,:);
+                startIndexNN = obj.novletNNIndices(ki);
+                endIndexNN = startIndexNN + obj.mm - 1;
+                tempTS = obj.positiveTS(startIndexNN: endIndexNN);
+                tempMin = min(tempTS);
+                tempMax = max(tempTS);
+                tempRange = tempMax-tempMin;
+                plot(1:obj.mm,-ki + 0.9*(tempTS - tempMin)/tempRange,'Color', 1-0.3*(1-colors(ki,:)));
+
+
+                tempTS = obj.novlets(ki,startIndex:endIndex);
                 tempMin = min(tempTS);
                 tempMax = max(tempTS);
                 tempRange = tempMax-tempMin;
     
-                plot(-ki + 0.9*(tempTS - tempMin)/tempRange);
+                tempContextTS = obj.novlets(ki,:);
+                plot(-obj.contextLength+1:obj.mm+obj.contextLength,-ki + 0.9*(tempContextTS - tempMin)/tempRange,'Color',lightGrayColor);
+                plot(1:obj.mm,-ki + 0.9*(tempTS - tempMin)/tempRange,'Color',colors(ki,:));
             end
             hold off;
             formattedTitle = sprintf("Top-%d Novlets", numNovlets);
             title(formattedTitle);
             set(gca,'xtick',[1,obj.mm],'ytick',[], 'TickDir','out');
-            xlim([0,obj.mm]);
+            xlim([-obj.contextLength+1,obj.mm+obj.contextLength]);
             box off;
 
             %%% end of plot
