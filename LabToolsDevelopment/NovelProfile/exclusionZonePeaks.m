@@ -1,4 +1,4 @@
-function [peakIndices, peakValues] = exclusionZonePeaks(profile, m, exclusionLength)
+function [peakIndices, peakValues] = exclusionZonePeaks(profile, m, exclusionLength, K)
 %%% Returns the indices of the lowest values
 %%%   sorted by lowest values
 %%%   using excluson zone around matches
@@ -9,7 +9,7 @@ if nargin < 3
 end
 
 numSubsequences = length(profile) - m + 1;
-maxNumPeaks = floor(2*numSubsequences/exclusionLength);
+maxNumPeaks = min(K, ceil(2*numSubsequences/exclusionLength));
 
 
 A = zeros(2,length(profile));
