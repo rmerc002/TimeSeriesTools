@@ -112,6 +112,22 @@ classdef OnlineNovelProfile
                 preNPSub = MP_ABSubUpdated - MP_AASub;
                 preNPSub = normalizeContrastProfileAmplitude(preNPSub, obj.mm);
                 if any(preNPSub>0)
+                    %%%This is an important note for the paper
+                    %%% There is the problem of selecting a local optimum
+                    %%% peak if the greatest value is on the far right of
+                    %%% the current window. The issue is that there may be
+                    %%% an even greater value within a subsequence length.
+                    %%% This is solved by using an exclusion zone of mm
+                    %%% along with min buffer size of 4*mm and selecting
+                    %%% the top two peaks within the buffer. By choosing
+                    %%% the smaller of the two peaks, which is at least mm 
+                    %%% due to the exclusion zone, a possibly more optimal 
+                    %%% peak is saved for the next round. If the highest
+                    %%% peak is on the far right, and there is an
+                    %%% undiscovered higher peak within a subsequence
+                    %%% length of mm, then in the next selection cycle, the
+                    %%% current highest peak will be pushed away due to the
+                    %%% exclusion zone of the next better peak.
                    [peakIndices, peakValues] = exclusionZonePeaks(preNPSub, obj.mm, obj.exclusionLength, 2);
                     peakIndex = peakIndices(1);
                 else
@@ -156,17 +172,17 @@ classdef OnlineNovelProfile
                 obj.preNP(obj.bufferStartIndex:activeEndIndex) = preNPSub;
 
                 %%% try to remove impact of the second instance
-                if peakContrast > obj.noveltyThreshold
-                    startIndexActionWindow = max(1, obj.novletNNIndices(end) - obj.contextLength);
-                    endIndexActionWindow = min(length(obj.positiveTS), startIndexActionWindow + obj.minBufferLength + obj.contextLength - 1);
-                    tSub = t(startIndexActionWindow:endIndexActionWindow);
-                    newMP_AB = mpxABBA(tSub, novlet, obj.mm); %%%TODO: verify if this overlap is correct
-                    newMP_AB = clipMatrixProfileAmplitude(newMP_AB, obj.mm); 
-                    tempAB = obj.MP_AB(startIndexActionWindow:endIndexActionWindow-obj.mm+1);
-                    tempAB = min(tempAB, newMP_AB);
-
-                    obj.MP_AB(startIndexActionWindow:endIndexActionWindow-obj.mm+1) = tempAB;
-                end
+%                 if peakContrast > obj.noveltyThreshold
+%                     startIndexActionWindow = max(1, obj.novletNNIndices(end) - obj.contextLength);
+%                     endIndexActionWindow = min(length(obj.positiveTS), startIndexActionWindow + obj.minBufferLength + obj.contextLength - 1);
+%                     tSub = t(startIndexActionWindow:endIndexActionWindow);
+%                     newMP_AB = mpxABBA(tSub, novlet, obj.mm); %%%TODO: verify if this overlap is correct
+%                     newMP_AB = clipMatrixProfileAmplitude(newMP_AB, obj.mm); 
+%                     tempAB = obj.MP_AB(startIndexActionWindow:endIndexActionWindow-obj.mm+1);
+%                     tempAB = min(tempAB, newMP_AB);
+% 
+%                     obj.MP_AB(startIndexActionWindow:endIndexActionWindow-obj.mm+1) = tempAB;
+%                 end
 
                 
                 obj.bufferStartIndex = obj.bufferStartIndex + peakIndex + obj.exclusionLength;
@@ -387,12 +403,12 @@ classdef OnlineNovelProfile
             plot(tempPos,'Color',lightGrayColor,'LineWidth',1);
 
             %%% Matched Second instance
-%             for ii = 1:length(obj.novletIndices)
-%                 startIndex = obj.novletNNIndices(ii);
-%                 endIndex = startIndex + obj.mm;
-%                 subsequence = obj.positiveTS(startIndex:endIndex);
-%                 plot(startIndex:endIndex, subsequence,'Color',novletNNColor,'LineWidth',1)
-%             end
+            for ii = 1:length(obj.novletIndices)
+                startIndex = obj.novletNNIndices(ii);
+                endIndex = startIndex + obj.mm;
+                subsequence = obj.positiveTS(startIndex:endIndex);
+                plot(startIndex:endIndex, subsequence,'Color',novletNNColor,'LineWidth',1)
+            end
             
             %%% Matched First instance
             for ii = 1:length(obj.novletIndices)
@@ -404,7 +420,7 @@ classdef OnlineNovelProfile
             
             markerHeight = 1.2*max(obj.positiveTS);
             scatter(obj.novletIndices, markerHeight*ones(length(obj.novletScores),1) ,20,'v','MarkerFaceColor',novletLabelColor,'MarkerEdgeColor',novletLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
-%             scatter(obj.novletNNIndices, markerHeight*ones(length(obj.novletScores),1), 20,'v','MarkerFaceColor',novletNNLabelColor,'MarkerEdgeColor',novletNNLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
+            scatter(obj.novletNNIndices, markerHeight*ones(length(obj.novletScores),1), 20,'v','MarkerFaceColor',novletNNLabelColor,'MarkerEdgeColor',novletNNLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
 
             
     
@@ -440,9 +456,9 @@ classdef OnlineNovelProfile
             ax5 = nexttile;
             hold on;
             plot([0,maxTSLength],[obj.noveltyThreshold, obj.noveltyThreshold],'--','Color',grayColor);
-            plot(obj.rNP,'Color',grayColor);
+            plot(obj.preNP,'Color',grayColor);
             scatter(obj.novletIndices, ones(length(obj.novletScores),1) ,20,'v','MarkerFaceColor',novletLabelColor,'MarkerEdgeColor',novletLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
-%             scatter(obj.novletNNIndices, ones(length(obj.novletScores),1), 20,'v','MarkerFaceColor',novletNNLabelColor,'MarkerEdgeColor',novletNNLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
+            scatter(obj.novletNNIndices, ones(length(obj.novletScores),1), 20,'v','MarkerFaceColor',novletNNLabelColor,'MarkerEdgeColor',novletNNLabelColor,'MarkerFaceAlpha',0.7,'MarkerEdgeAlpha',0); 
             hold off;
             xlim([1,maxTSLength]);
             ylim([-0.1,1.1]);
@@ -491,6 +507,10 @@ classdef OnlineNovelProfile
             box off;
 
             %%% end of plot
+        end
+
+        function novletsWithoutContext = getNovletsWithoutContext(obj)
+            novletsWithoutContext = obj.novlets(:,obj.contextLength+1:obj.contextLength+obj.mm);
         end
     end
 end
