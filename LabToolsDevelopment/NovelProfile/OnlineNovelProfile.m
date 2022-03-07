@@ -23,15 +23,13 @@ classdef OnlineNovelProfile
         exclusionLength
         contextLength
         noveltyThreshold
-        lMP_AA
-        rMP_AA
-        lMP_AA_Indices
-        rMP_AA_Indices
+        MP_AA
+        MP_AA_Indices
         MP_AB
+        DP_Novelets
         CP % Contrast Profile
         preNP %Highlights seconds instance of behavior
         NP % Novelet Profile
-        rNP
 
         minBufferLength
         oldNewsAnnotation
@@ -100,11 +98,17 @@ classdef OnlineNovelProfile
             
             obj.bufferStartIndex = 1;
 
+            obj.positiveTS = [];
+            obj.MP_AA = [];
+            obj.MP_AA_Indices = [];
+            obj.MP_AB = [];
+            obj.DP_Novelets = [];
+            obj.CP = [];
             obj = obj.update(positiveTS);
 
             end
 
-            function obj = discoverNovelets(obj, t, MP_AB, MP_AA, MP_AA_Indices)
+        function obj = discoverNovelets(obj, t, MP_AB, MP_AA, MP_AA_Indices)
             t = reshape(t, length(t), 1);
 
             
@@ -116,8 +120,9 @@ classdef OnlineNovelProfile
                 endIndexActionWindow = min(length(obj.positiveTS), startIndexActionWindow + obj.minBufferLength - 1);
                 endIndexMPActionWindow = endIndexActionWindow - obj.mm + 1;
                 tSub = t(startIndexActionWindow:endIndexActionWindow);
-                MP_ABSubOrig = MP_AB(startIndexActionWindow:endIndexMPActionWindow);
-                MP_ABSubUpdated = MP_ABSubOrig;
+                MP_ABSub = MP_AB(startIndexActionWindow:endIndexMPActionWindow);
+                MP_ABSubUpdated = MP_ABSub;
+                DP_NoveletsUpdated = 2*sqrt(obj.mm)*ones(length(MP_ABSub),1);
                 MP_AASub = MP_AA(startIndexActionWindow:endIndexMPActionWindow);
                 MP_AA_IndicesSub = MP_AA_Indices(startIndexActionWindow:endIndexMPActionWindow);
 
@@ -125,26 +130,28 @@ classdef OnlineNovelProfile
                 try
                     for jj = 1:size(obj.novelets,1)
                         novelet = obj.novelets(jj, :)';
-                        newMP_AB = mpxABBA(tSub, novelet, obj.mm); %%%TODO: verify if this overlap is correct
-                        newMP_AB = clipMatrixProfileAmplitude(newMP_AB, obj.mm); 
-                        MP_ABSubUpdated(1:length(newMP_AB)) = min(MP_ABSubUpdated(1:length(newMP_AB)), newMP_AB);
+                        newDP_Novelets = mpxABBA(tSub, novelet, obj.mm); %%%TODO: verify if this overlap is correct
+                        newDP_Novelets = clipMatrixProfileAmplitude(newDP_Novelets, obj.mm); 
+                        DP_NoveletsUpdated(1:length(newDP_Novelets)) = min(DP_NoveletsUpdated(1:length(newDP_Novelets)), newDP_Novelets);
                     end
                 catch
                     return
                 end
 
-                %%%Ignore time series near by
+                %%%Ignore time series nearby
                 if obj.bufferStartIndex > obj.startLocalOffset && obj.startLocalOffset > 0
                     startLocalOffset = obj.bufferStartIndex - obj.startLocalOffset;
                     endLocalOffset = obj.bufferStartIndex - obj.endLocalOffset;
                     localTS = obj.positiveTS(startLocalOffset: endLocalOffset);
-                    newMP_AB = mpxABBA(tSub, localTS, obj.mm); %%%TODO: verify if this overlap is correct
-                    newMP_AB = clipMatrixProfileAmplitude(newMP_AB, obj.mm); 
-                    MP_ABSubUpdated(1:length(newMP_AB)) = min(MP_ABSubUpdated(1:length(newMP_AB)), newMP_AB);
+                    newDP_Novelets = mpxABBA(tSub, localTS, obj.mm); %%%TODO: verify if this overlap is correct
+                    newDP_Novelets = clipMatrixProfileAmplitude(newDP_Novelets, obj.mm); 
+                    DP_NoveletsUpdated(1:length(newDP_Novelets)) = min(DP_NoveletsUpdated(1:length(newDP_Novelets)), newDP_Novelets);
                 end
                 
-                CPSub = MP_ABSubOrig - MP_AASub;
+                CPSub = MP_ABSub - MP_AASub;
                 CPSub = normalizeContrastProfileAmplitude(CPSub, obj.mm);
+
+                MP_ABSubUpdated = min(MP_ABSub, DP_NoveletsUpdated);
 
                 preNPSub = MP_ABSubUpdated - MP_AASub;
                 preNPSub = normalizeContrastProfileAmplitude(preNPSub, obj.mm);
@@ -202,10 +209,11 @@ classdef OnlineNovelProfile
 
                 
                 activeEndIndex = obj.bufferStartIndex + length(MP_AASub)-1;
-                obj.lMP_AA(obj.bufferStartIndex:activeEndIndex) = MP_AASub;
-                obj.lMP_AA_Indices(obj.bufferStartIndex:activeEndIndex) = MP_AA_IndicesSub;
-                obj.MP_AB(obj.bufferStartIndex:activeEndIndex) = MP_ABSubUpdated;
-                obj.CP(obj.bufferStartIndex:activeEndIndex) = CPSub;
+%                 obj.MP_AA(obj.bufferStartIndex:activeEndIndex) = MP_AASub;
+%                 obj.MP_AA_Indices(obj.bufferStartIndex:activeEndIndex) = MP_AA_IndicesSub;
+%                 obj.MP_AB(obj.bufferStartIndex:activeEndIndex) = DP_NoveletsUpdated;
+%                 obj.MP_ABUpdated(obj.bufferStartIndex:activeEndIndex) = MP_ABSubUpdated;
+%                 obj.CP(obj.bufferStartIndex:activeEndIndex) = CPSub;
                 obj.preNP(obj.bufferStartIndex:activeEndIndex) = preNPSub;
 
                 %%% try to remove impact of the second instance
@@ -228,12 +236,11 @@ classdef OnlineNovelProfile
 
             %%% NP caculated from CP and MP_AA_Indices
             for ii = initialBufferStartIndex: length(obj.NP)
-                if ~isnan(obj.lMP_AA_Indices(ii))
-                    obj.NP(obj.lMP_AA_Indices(ii)) = max(obj.NP(obj.lMP_AA_Indices(ii)), obj.preNP(ii));
+                if ~isnan(obj.MP_AA_Indices(ii))
+                    obj.NP(obj.MP_AA_Indices(ii)) = max(obj.NP(obj.MP_AA_Indices(ii)), obj.preNP(ii));
                 end
             end
 
-            obj.rNP = normalizeContrastProfileAmplitude(obj.MP_AB - obj.rMP_AA, obj.mm);
             
 %             for ii = initialBufferStartIndex:activeEndIndex
 %                 if obj.CP(ii) > 0.1 && obj.preNP(ii) < obj.noveltyThreshold
@@ -256,13 +263,13 @@ classdef OnlineNovelProfile
             else
                 t = reshape(t, length(t), 1);
                 obj.positiveTS = [obj.positiveTS; t];
-                obj.lMP_AA = [obj.lMP_AA;2*sqrt(obj.mm)*ones(length(t),1)];
-                obj.lMP_AA_Indices = [obj.lMP_AA_Indices;nan(length(t),1)];
-                obj.rMP_AA = [obj.rMP_AA;2*sqrt(obj.mm)*ones(length(t),1)];
-                obj.rMP_AA_Indices = [obj.rMP_AA_Indices;nan(length(t),1)];
-                obj.MP_AB = [obj.MP_AB;2*sqrt(obj.mm)*ones(length(t),1)];
-                obj.CP = [obj.CP;zeros(length(t),1)];
-                obj.NP = [obj.NP;zeros(length(t),1)];
+%                 obj.MP_AA = [obj.MP_AA; 2*sqrt(obj.mm)*ones(length(t),1)];
+%                 obj.MP_AA_Indices = [obj.MP_AA_Indices; nan(length(t),1)];
+%                 obj.MP_AB = [obj.MP_AB; 2*sqrt(obj.mm)*ones(length(t),1)];
+%                 obj.DP_Novelets = [obj.DP_Novelets; 2*sqrt(obj.mm)*ones(length(t),1)];
+%                 obj.CP = [obj.CP; zeros(length(t),1)];
+                obj.preNP = [obj.NP; zeros(length(t),1)];
+                obj.NP = [obj.NP; zeros(length(t),1)];
                 obj.oldNewsAnnotation = [obj.oldNewsAnnotation; false(length(t),1)];
             end
         
@@ -289,21 +296,23 @@ classdef OnlineNovelProfile
             end
             newMP_AB(1:length(tempMP_AB)) = tempMP_AB;
             %%% Start Novelet Comparisons
-            numNovelets = size(obj.novelets,1);
-            noveletDP = sqrt(2*obj.mm)*ones(numNovelets,unprocessedLength);
-            
-            if numNovelets > 0
-                for noveletIndex = 1:numNovelets
-                    novelet = reshape(obj.novelets(noveletIndex,:), obj.mm + 2*obj.contextLength, 1);
-                    tempNoveletDist = real(MASS_V2(unprocessedPositiveTS, novelet));
-                    tempNoveletDist = clipMatrixProfileAmplitude(tempNoveletDist, obj.mm);
-                    noveletDP(noveletIndex,1:length(tempNoveletDist)) = tempNoveletDist;
-                end
-                [noveletMinDist, ~] = min(noveletDP,[],1);
-                noveletMinDist = reshape(noveletMinDist, unprocessedLength, 1);
-    
-                newMP_AB = min(newMP_AB, noveletMinDist);
-            end
+            %%%TODO: remove, novelet comparison are done in novelet
+            %%%discovery function
+%             numNovelets = size(obj.novelets,1);
+%             noveletDP = sqrt(2*obj.mm)*ones(numNovelets,unprocessedLength);
+%             
+%             if numNovelets > 0
+%                 for noveletIndex = 1:numNovelets
+%                     novelet = reshape(obj.novelets(noveletIndex,:), obj.mm + 2*obj.contextLength, 1);
+%                     tempNoveletDist = real(MASS_V2(unprocessedPositiveTS, novelet));
+%                     tempNoveletDist = clipMatrixProfileAmplitude(tempNoveletDist, obj.mm);
+%                     noveletDP(noveletIndex,1:length(tempNoveletDist)) = tempNoveletDist;
+%                 end
+%                 [noveletMinDist, ~] = min(noveletDP,[],1);
+%                 noveletMinDist = reshape(noveletMinDist, unprocessedLength, 1);
+%     
+%                 newMP_AB = min(newMP_AB, noveletMinDist);
+%             end
 
 
             %%%Extending the left only matrix profile can be done by
@@ -343,8 +352,17 @@ classdef OnlineNovelProfile
 %             obj.bufferStartIndex = obj.bufferStartIndex + 2*obj.exclusionLength;
 %             obj = discoverNovelets(obj, unprocessedPositiveTS(2*obj.exclusionLength+1:end), newMP_AB(2*obj.exclusionLength+1:end), newMP_AA(2*obj.exclusionLength+1:end), newMP_AA_Indices(2*obj.exclusionLength+1:end));
             
-            
+            obj.MP_AA(obj.bufferStartIndex:end) = [];
+            obj.MP_AA_Indices(obj.bufferStartIndex:end) = [];
+            obj.MP_AB(obj.bufferStatIndex:end) = [];
+
+            obj.MP_AA = [obj.MP_AA; newMP_AA];
+            obj.MP_AA_Indices = [obj.MP_AA_Indices; newMP_AA_Indices];
+            obj.MP_AB = [obj.MP_AB; newMP_AB];
  
+            newCP = newMP_AB - newMP_AA;
+            newCP = normalizeContrastProfileAmplitude(newCP, obj.mm);
+            obj.CP = [obj.CP; newCP];
 
             %%%Discover novelets
             obj = discoverNovelets(obj, unprocessedPositiveTS, newMP_AB, newMP_AA, newMP_AA_Indices);
@@ -447,7 +465,7 @@ classdef OnlineNovelProfile
             box off;
             
             ax3 = nexttile;
-            plot(obj.lMP_AA,'Color',blueColor);
+            plot(obj.MP_AA,'Color',blueColor);
             hold on;
             plot(obj.MP_AB,'Color',redColor);
             xlim([1,maxTSLength]);
