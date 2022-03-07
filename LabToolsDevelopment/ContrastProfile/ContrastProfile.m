@@ -158,21 +158,28 @@ function [plato, plato_twin, CP] = ContrastProfile(positiveTS, negativeTS, m, fo
         %%%%%%%%%%%%%%%%%%
         %%% PLATO plot %%%
         %%%%%%%%%%%%%%%%%%
+        negDistanceProfile = MASS_V2(negativeTS, plato);
+        [~,negNNIndex] = min(negDistanceProfile);
+        negNN = negativeTS(negNNIndex:negNNIndex+m-1);
+
         fig = figure('Name','Contrast Profile: Plato','NumberTitle','off');
         set(gcf, 'Position', [0,100,400,400]);
-        annotation('textbox', [0, 0.75, 0, 0], 'string', 'Plato')
-        annotation('textbox', [0, 0.35, 0, 0], 'string', 'Plato Twin')
+        annotation('textbox', [0, 0.85, 0, 0], 'string', 'Plato');
+        annotation('textbox', [0, 0.58, 0, 0], 'string', 'Plato Twin');
+        annotation('textbox', [0, 0.3, 0, 0], 'string', 'Neg NN');
         
-        subsequenceIndices = [platoIndex, platoTwinIndex];
-        colors = [platoColor; platoTwinColor];
+        subsequences = nan(3,m);
+        subsequences(1,:) = positiveTS(platoIndex:platoIndex+m-1);
+        subsequences(2,:) = positiveTS(platoTwinIndex:platoTwinIndex+m-1);
+        subsequences(3,:) = negNN;
+        colors = [platoColor; platoTwinColor; redColor];
         plotIndex = 0;
         inset = 0.9;
 %         plot(0,0);
         hold on;
-        for i = 1:length(subsequenceIndices)
-            ti = subsequenceIndices(i);
+        for i = 1:size(subsequences,1)
             color = colors(i,:);
-            tempTS = positiveTS(ti:ti+m-1);
+            tempTS = subsequences(i,:);
             tempMin = min(tempTS);
             tempMax = max(tempTS);
             tempRange = max(1e-5, tempMax-tempMin);
@@ -183,7 +190,7 @@ function [plato, plato_twin, CP] = ContrastProfile(positiveTS, negativeTS, m, fo
         
 
         xlim([0,m]);
-        formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Plato \\color{black}(top) and \\color[rgb]{%f,%f,%f}Plato Twin \\color{black}(bottom)",platoColor(1), platoColor(2), platoColor(3), platoTwinColor(1), platoTwinColor(2), platoTwinColor(3));
+        formattedTitle = sprintf("\\color[rgb]{%f,%f,%f}Plato \\color{black}(top) and \\color[rgb]{%f,%f,%f}Plato Twin \\color{black}(middle)",platoColor(1), platoColor(2), platoColor(3), platoTwinColor(1), platoTwinColor(2), platoTwinColor(3));
         title(formattedTitle);
         set(gca,'xtick',[1,m],'ytick',[], 'TickDir','out');
         box off;

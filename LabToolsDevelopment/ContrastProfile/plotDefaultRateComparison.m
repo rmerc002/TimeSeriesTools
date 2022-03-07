@@ -4,7 +4,7 @@ function plotDefaultRateComparison(DP, labels, m, binSize, plotName, numBinsPlot
     colorRed = [0.8, 0.3, 0.1];
     boxAlpha = 0.3;
     
-    maxCandidates = length(DP)/m;
+    maxCandidates = ceil(length(DP)/m);
     NN = NearestNeighborSelection(DP, m, maxCandidates);
 
     sortedLabels = labels(NN);

@@ -4,11 +4,16 @@ function [peakIndices, peakValues] = exclusionZonePeaks(profile, m, exclusionLen
 %%%   using excluson zone around matches
 %%%   K (optional): return Top-K min indices. Default return all possible indices, 
 %%%   WARNING: may not
+
+numSubsequences = length(profile) - m + 1;
 if nargin < 3
     exclusionLength = ceil(m/2);
 end
+if nargin < 4
+    K = ceil(2*numSubsequences/exclusionLength);
+end
 
-numSubsequences = length(profile) - m + 1;
+
 maxNumPeaks = min(K, ceil(2*numSubsequences/exclusionLength));
 
 

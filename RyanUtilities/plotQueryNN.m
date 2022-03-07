@@ -1,4 +1,7 @@
-function plotQueryNN(ts, query, KNN)
+function plotQueryNN(ts, query, KNN, contextLength)
+    
+    query = reshape(query,length(query),1);
+    ts = reshape(ts,length(ts),1);
     m = length(query);
     epsilon = 1e-6;
     %%%Generating unique colors for classes when there can be many classes
@@ -7,7 +10,9 @@ function plotQueryNN(ts, query, KNN)
     colors = lines(numColors);
     
     %plot with context
-    contextLength = m;
+    if nargin < 4
+        contextLength = m;
+    end
     
     
     DP = getPlatoDistanceProfile(ts, query);
@@ -30,7 +35,7 @@ function plotQueryNN(ts, query, KNN)
     subsequences(1,startIndex:endIndex) = query;
     
     %%%Store the nearest neighbors
-    ts = [nan(1,contextLength),ts,nan(1,contextLength)]; %easy way to handles edge cases
+    ts = [nan(contextLength,1);ts;nan(contextLength,1)]; %easy way to handles edge cases
     for ssIndex = 1:KNN
         nnIndex = NN(ssIndex) + contextLength;
         startIndex = nnIndex - contextLength;
@@ -96,4 +101,13 @@ function plotQueryNN(ts, query, KNN)
     xlabel("Time Index");
     set(gca,'xtick',[1-contextLength,1,m,m+contextLength],'ytick',[], 'TickDir','out');
     box off;
+
+    %%% Distance Profile Locations
+
+    figure;
+    hold on;
+    plot(DP);
+    NNDist = DP(NN);
+    scatter(NN,NNDist,'filled');
+    hold off;
 end
