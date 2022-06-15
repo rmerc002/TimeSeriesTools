@@ -26,10 +26,14 @@ disp(charSumss)
 disp(ind)
 pChoice = zeros(1,4);
 
-pChoice(1,ind(1)) = 1;
-pChoice(1,ind(2)) = -charSumss(1)*1/charSumss(2);
-pChoice(1,ind(3)) = 2;
-pChoice(1,ind(4)) = -charSumss(3)*2/charSumss(4);
+% pChoice(1,ind(1)) = 1;
+% pChoice(1,ind(2)) = -charSumss(1)*1/charSumss(2);
+% pChoice(1,ind(3)) = 2;
+% pChoice(1,ind(4)) = -charSumss(3)*2/charSumss(4);
+pChoice(1,1) = 1;
+pChoice(1,2) = 2;
+pChoice(1,3) = -2;
+pChoice(1,4) = -1;
 disp(pChoice);
 
 ts = {};

@@ -1,16 +1,19 @@
-function [peakIndices, peakValues] = exclusionZonePeaks(profile, m, exclusionLength, K)
-%%% Returns the indices of the lowest values
+function [peakIndices, peakValues] = exclusionZonePeaks(profile, mm, exclusionLength, K, distanceThreshold)
+%%% Returns the indices of the largest values
 %%%   sorted by lowest values
 %%%   using excluson zone around matches
 %%%   K (optional): return Top-K min indices. Default return all possible indices, 
 %%%   WARNING: may not
 
-numSubsequences = length(profile) - m + 1;
+numSubsequences = length(profile) - mm + 1;
 if nargin < 3
-    exclusionLength = ceil(m/2);
+    exclusionLength = ceil(mm/2);
 end
 if nargin < 4
     K = ceil(2*numSubsequences/exclusionLength);
+end
+if nargin < 5
+    distanceThreshold = 0;
 end
 
 
@@ -31,6 +34,9 @@ index = 1;
 Kindex = 1; %for debugging
 while index <= maxNumPeaks && Kindex < size(B,1)
     trialIndex = B(Kindex,1);
+    if profile(trialIndex) < distanceThreshold
+        break;
+    end
     if exclusionZone(trialIndex) == 0 && ~isnan(profile(trialIndex))
         peakIndices(index) = trialIndex;
         peakValues(index) = profile(trialIndex);
