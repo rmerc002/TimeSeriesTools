@@ -1,8 +1,9 @@
 function Y = matrixPool(X, poolsize, extrema)
-    numBlocks = floor(size(X,1)/poolsize);
-    Y = zeros(numBlocks);
-    for rr = 1:numBlocks
-        for cc = 1:numBlocks
+    numRowBlocks = floor(size(X,1)/poolsize);
+    numColBlocks = floor(size(X,2)/poolsize);
+    Y = zeros(numRowBlocks, numColBlocks);
+    for rr = 1:numRowBlocks
+        for cc = 1:numColBlocks
             rrStart = poolsize*(rr-1) + 1;
             rrEnd = rrStart + poolsize - 1;
     

@@ -1,14 +1,13 @@
 % constructDemoData;
-[simmat] = SimMat(pos, mm); % self-join
+% [simmat] = SimMat(pos, mm); % self-join
 
-%% Remove the diagnomal which will be trivial matches
-exclusionLength = ceil(mm/2);
-for rr = 1:size(simmat,1)
-    startIndex = max(1,rr-exclusionLength+1);
-    endIndex = min(size(simmat,1), rr+exclusionLength-1);
-    simmat(startIndex:endIndex,rr) = 2*sqrt(mm);
-end
-
+%%% Remove the diagnomal which will be trivial matches
+% exclusionLength = ceil(mm/2);
+% for rr = 1:size(simmat,1)
+%     startIndex = max(1,rr-exclusionLength+1);
+%     endIndex = min(size(simmat,1), rr+exclusionLength-1);
+%     simmat(startIndex:endIndex,rr) = 2*sqrt(mm);
+% end
 distPercentile = 50;
 %%% start with a small block size and increase until blocks are solid
 blockSize = 10;
@@ -18,6 +17,7 @@ simmatBlockNorm = thresholdMatrix(simmatBlockMin, distPercentile, "min");
 figure;
 imagesc(simmatBlockNorm);
 colormap("gray");
+
 
 
 
@@ -35,7 +35,7 @@ for rr = 1:size(simmat,1)
 end
 
 
-distPercentile = 10;
+distPercentile = 100;
 %%% start with a small block size and increase until blocks are solid
 blockSize = 10;
 simmatBlockMin = matrixPool(simmatContrast, blockSize, "max");
