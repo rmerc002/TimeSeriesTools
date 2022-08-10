@@ -1,4 +1,4 @@
-function [TD, TDProfile] = TemporalDist(ts, mm, forcePlot)% ts = data(:,5);
+function [TD, TDProfile] = TemporalDist(ts, mm, forcePlot, mp, mpi)% ts = data(:,5);
     %%%TODO: make a class
     %%%     search for a single TemporalDist in the ts
     %%%     search for a range around the TemporalDist
@@ -7,14 +7,17 @@ function [TD, TDProfile] = TemporalDist(ts, mm, forcePlot)% ts = data(:,5);
     %%%     launch app for interactivity
     %%%     selection between weighted vs unweighted frequency
 
+    exclusion_mm = ceil(mm/2);
+
     if nargin < 3
         forcePlot = false;
+    end
+    if nargin < 4
+        [mp, mpi] = mpx_v3(ts, exclusion_mm, mm, false);
     end
 
     ts = reshape(ts,length(ts),1);
  
-    exclusion_mm = ceil(mm/2);
-    [mp, mpi] = mpx_v3(ts, exclusion_mm, mm, false);
     
     indices = 1:length(mp);
     indices = indices';

@@ -1,4 +1,4 @@
-function [slidingNearScore] = TemporalDistSliding2(ts, mm, rr, plot_output, mp, mpi)% ts = data(:,5);
+function [slidingNearScore] = TemporalDistSliding2(ts, mm, binWin, TDMax, plot_output, mp, mpi)% ts = data(:,5);
     %%%TODO: make a class
     %%%     search for a single TemporalDist in the ts
     %%%     search for a range around the TemporalDist
@@ -9,34 +9,45 @@ function [slidingNearScore] = TemporalDistSliding2(ts, mm, rr, plot_output, mp, 
 
     exclusion_mm = ceil(mm/2);
 
-    if nargin < 4
-        plot_output = false;
-    end
-    if nargin < 3
-        rr = length(ts);
-    end
-    if nargin < 5
-        [mp, mpi] = mpx_v3(ts, exclusion_mm, mm);
-    end
+%     if nargin < 4
+%         plot_output = false;
+%     end
+%     if nargin < 3
+%         binWin = length(ts);
+%     end
+%     if nargin < 5
+%         [mp, mpi] = mpx_v3(ts, exclusion_mm, mm);
+%     end
     ts = reshape(ts,length(ts),1);
+    mp = reshape(mp,length(mp),1);
+    mpi = reshape(mpi,length(mpi),1);
+
+    %%% normalize by dividing by noise equivalent ED, ignore anti-correlated
+    mp = mp/sqrt(2*mm);
+    mp = min(1, mp);
+    mp = 1-mp;
+    mp(isnan(mp)) = 0;
  
-    subcount = length(ts)-mm+1;
+    subcount = length(mp);
     
-    TDMax = 100000;
+    
     
     indices = 1:length(mp);
     indices = indices';
     TDProfile = abs(mpi-indices); %%% Nearest Neighbor Spatial Distances
+    TDProfile(isnan(TDProfile)) = length(TDProfile)-1;
 
-    weights = linspace(subcount,0.5,subcount); %multiply by weights, or divide by linspace(1/subcount,2,subcounts)
-    TDweights = weights(TDProfile);
+%     TDMax = max(TDProfile);
+
+    weights = linspace(subcount,0.5,subcount)'; %multiply by weights, or divide by linspace(1/subcount,2,subcounts)
+    TDweights = weights(TDProfile).*mp;
     numBins = 100;
     binSize = ceil(TDMax/numBins);
-    TD2DProfile = zeros(length(ts)-rr+1, numBins);
-    for ii = 1:length(ts)-rr+1
+    TD2DProfile = zeros(length(ts)-binWin+1, numBins);
+    for ii = 1:length(TDProfile)-binWin+1
         if ii == 1
-            tempTDProfile = TDProfile(1:rr);
-            tempTDweights = TDweights(1:rr);
+            tempTDProfile = TDProfile(1:binWin);
+            tempTDweights = TDweights(1:binWin);
             for kk = 1:numBins
                 
                 binStartIndex = 1+(kk-1)*binSize;
@@ -46,7 +57,7 @@ function [slidingNearScore] = TemporalDistSliding2(ts, mm, rr, plot_output, mp, 
             end
         
         else
-            if ii+rr-1 > length(ts)-rr + 1
+            if ii+binWin-1 > length(ts)-binWin + 1
                 break;
             end
 
@@ -58,19 +69,19 @@ function [slidingNearScore] = TemporalDistSliding2(ts, mm, rr, plot_output, mp, 
                 oldBinValue = TDweights(ii-1);
                 TD2DProfile(ii,oldBinIndex) = TD2DProfile(ii,oldBinIndex) - oldBinValue;
             end
-            if TDProfile(ii+rr-1) < TDMax
-                newBinIndex = ceil(TDProfile(ii+rr-1)/binSize);
-                newBinValue = TDweights(ii+rr-1);
+            if TDProfile(ii+binWin-1) < TDMax
+                newBinIndex = ceil(TDProfile(ii+binWin-1)/binSize);
+                newBinValue = TDweights(ii+binWin-1);
                 TD2DProfile(ii,newBinIndex) = TD2DProfile(ii,newBinIndex) + newBinValue;
             end
         end
     end
 
-    TD2DProfile = TD2DProfile./rr;
+    TD2DProfile = TD2DProfile./binWin;
 
     if plot_output
         figure; 
-        imagesc(TD2DProfile');
+        imagesc(1:size(TD2DProfile,1), ceil(linspace(1,TDMax)), TD2DProfile');
         ax = gca;
         ax.YDir = 'normal';
         colormap(hot);
