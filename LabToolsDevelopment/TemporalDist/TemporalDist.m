@@ -18,13 +18,15 @@ function [TD, TDProfile] = TemporalDist(ts, mm, forcePlot, mp, mpi)% ts = data(:
 
     ts = reshape(ts,length(ts),1);
  
+    mpOriginal = reshape(mp, length(mp), 1);
+    mpi = reshape(mpi, length(mpi), 1);
     
     indices = 1:length(mp);
     indices = indices';
     TDProfile = abs(mpi-indices); %%% Nearest Neighbor Spatial Distances
     
     %%% normalize by dividing by noise equivalent ED, ignore anti-correlated
-    mp = mp/sqrt(2*mm);
+    mp = mpOriginal/sqrt(2*mm);
     mp = min(1, mp);
     mp = 1-mp;
     
@@ -35,7 +37,8 @@ function [TD, TDProfile] = TemporalDist(ts, mm, forcePlot, mp, mpi)% ts = data(:
         if nnsd <= 0 || isnan(nnsd)
             continue;
         end
-        TD(nnsd) = TD(nnsd) + mp(ii);
+        nnsd = ceil(nnsd);
+        TD(nnsd) = TD(nnsd) + 1;%mp(ii);
     end
 %     TD = TD/length(mp); %%% time series length normalize
     distributionNorm = linspace(2,0,length(TD))';
@@ -81,14 +84,25 @@ function [TD, TDProfile] = TemporalDist(ts, mm, forcePlot, mp, mpi)% ts = data(:
        
         ax2 = nexttile();
         
+        diagonalMean = mpx_diagonalMean(ts, ceil(mm/2), mm, false);
         hold on;
-        plot([0,length(TD)],[TDhat,TDhat],'--','Color',[0.4, 0.4, 0.4])
-        bar(barX,TDBinned); %%TODO: adjust for weighting
-    %     h = histogram(TDProfile,100); %%TODO: adjust for weighting
+%         plot([0,length(TD)],[TDhat,TDhat],'--','Color',[0.4, 0.4, 0.4])
+%         bar(barX,TDBinned); %%TODO: adjust for weighting
+%     %     h = histogram(TDProfile,100); %%TODO: adjust for weighting
+
+        plot(diagonalMean);
+        meanMP = mean(mpOriginal,'omitnan');
+        dm = mean(diagonalMean,'omitnan');
+        plot([0,length(diagonalMean)], [meanMP, meanMP],"--");
+        plot([0,length(diagonalMean)], [dm, dm],"--");
         hold off;
+        ylim([0,2*sqrt(mm)]);
         set(gca, 'TickDir','out');
         box off;
-        title(sprintf("TD Binned, nearScore: %.2f", earlyScore));
+
+        mindm = min(diagonalMean);
+        score = (mindm-meanMP)/(dm-meanMP);
+        title(sprintf("diagonalMeans, min ED score: %.2f, [0,1]", score));
         
         linkaxes([ax1, ax2], 'x');
     end

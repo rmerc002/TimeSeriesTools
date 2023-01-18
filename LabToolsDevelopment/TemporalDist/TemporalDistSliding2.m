@@ -22,6 +22,9 @@ function [slidingNearScore] = TemporalDistSliding2(ts, mm, binWin, TDMax, plot_o
     mp = reshape(mp,length(mp),1);
     mpi = reshape(mpi,length(mpi),1);
 
+    maxmpiVal = max(mpi);
+    mpi(mpi==maxmpiVal) = nan;
+
     %%% normalize by dividing by noise equivalent ED, ignore anti-correlated
     mp = mp/sqrt(2*mm);
     mp = min(1, mp);
@@ -36,6 +39,7 @@ function [slidingNearScore] = TemporalDistSliding2(ts, mm, binWin, TDMax, plot_o
     indices = indices';
     TDProfile = abs(mpi-indices); %%% Nearest Neighbor Spatial Distances
     TDProfile(isnan(TDProfile)) = length(TDProfile)-1;
+    TDProfile(TDProfile==0) = 1;
 
 %     TDMax = max(TDProfile);
 

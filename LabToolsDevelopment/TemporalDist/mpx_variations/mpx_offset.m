@@ -1,4 +1,4 @@
-function [matrixProfile, matrixProfileIdx, isvalidwindow, motifsIdx, discordsIdx] = mpx_radius(timeseries, minlag, subseqlen, TC, plot_output)
+function [offsetDist, offsetIdx, matrixProfile, matrixProfileIdx] = mpx_offset(timeseries, subseqlen, plot_output)
 % (mpx_v3 titled from Kaveh Kamgar, 2020-12-24 12:58)
 % matrixProfile - distance between each subsequence timeseries(i : i + subseqLen - 1)
 %                 for i = 1 .... length(timeseries) - subseqLen + 1, with the condition
@@ -66,15 +66,15 @@ initial_subcount = length(timeseries) - subseqlen + 1;
 % case with time series A,B can be computed using difference equations for
 % each time series.
 
-% if nargin == 4
-%     plot_output = false;
-% elseif nargin ~= 5
-%     error('incorrect number of input arguments');
-% elseif ~isvector(timeseries)
-%     error('first argument must be a 1D vector');
-% elseif ~(isfinite(subseqlen) && floor(subseqlen) == subseqlen) || (subseqlen < 2) || (initial_subcount < 2)
-%     error('subsequence length must be an integer value between 2 and the length of the timeseries');
-% end
+if nargin == 2
+    plot_output = false;
+elseif nargin ~= 3
+    error('incorrect number of input arguments');
+elseif ~isvector(timeseries)
+    error('first argument must be a 1D vector');
+elseif ~(isfinite(subseqlen) && floor(subseqlen) == subseqlen) || (subseqlen < 2) || (initial_subcount < 2)
+    error('subsequence length must be an integer value between 2 and the length of the timeseries');
+end
 
 transposed_ = isrow(timeseries);
 if transposed_
@@ -83,6 +83,7 @@ end
 
 [ts, isvalidwindow, first, last] = find_valid_windows(timeseries, subseqlen);
 subcount = length(ts) - subseqlen + 1;
+minlag = ceil(subseqlen/2);
 if subcount < minlag
     warning("no valid comparisons could be performed");
     matrixProfile = inf(subcount, 1);
@@ -134,20 +135,19 @@ matrixProfile = repmat(-1, subcount, 1);
 matrixProfile(~isvalidwindow) = NaN;
 matrixProfileIdx = NaN(subcount, 1);
 
-for diag = minlag + 1 : subcount
-    %%%This is the only change to the standard functionality.
-    %%%Skip checking diagnols that are > radius+1 from the main diagnoal
+offsetDist = nan(subcount, 1);
 
-    if diag > TC + 1
-        continue;
-    end
+for diag = minlag + 1 : subcount
     cov_ = sum((ts(diag : diag + subseqlen - 1) - mu(diag)) .* (ts(1 : subseqlen) - mu(1)));
+    tempVals = zeros(subcount - diag + 1,1);
     for row = 1 : subcount - diag + 1
         col = diag + row - 1;
         if row > 1
             cov_ = cov_ - dr_bwd(row-1) * dc_bwd(col-1) + dr_fwd(row-1) * dc_fwd(col-1);
         end
         corr_ = cov_ * invnorm(row) * invnorm(col);
+        tempVals(row) = corr_;
+
         if corr_ > matrixProfile(row)
             matrixProfile(row) = corr_;
             matrixProfileIdx(row) = col;
@@ -157,8 +157,10 @@ for diag = minlag + 1 : subcount
             matrixProfileIdx(col) = row;
         end
     end
-end
 
+    tempValsED = sqrt(max(0, 2 * subseqlen * (1 - tempVals), 'includenan'));
+    offsetDist(diag-1) = mean(tempValsED,'omitnan');
+end
 
 % updated to pick outliers independent of motifs
 % this means they might overlap or whatever. Compute more of them if you
@@ -167,10 +169,39 @@ end
 
 [motifsIdx] = findMotifs(ts, mu, invnorm, matrixProfile, matrixProfileIdx, subseqlen, minlag);
 
-
 % Max caps anything that rounds inappropriately. This can hide potential
 % issues at times, but it's fairly rare.
 matrixProfile = sqrt(max(0, 2 * subseqlen * (1 - matrixProfile), 'includenan'));
+
+%%% Offset Indices
+indices = 1:length(matrixProfile);
+indices = indices';
+offsetProfile = abs(matrixProfileIdx-indices); %%% Nearest Neighbor Spatial Distances
+
+%%% normalize by dividing by noise equivalent ED, ignore anti-correlated
+mpNorm = matrixProfile/sqrt(2*subseqlen);
+mpNorm = min(1, mpNorm);
+mpNorm = 1-mpNorm;
+
+%%% Nearest Neighbor Spatial Profile
+offsetIdx = zeros(length(mpNorm),1);
+for ii = 1:length(mpNorm)
+    nnsd = offsetProfile(ii);
+    if nnsd <= 0 || isnan(nnsd)
+        continue;
+    end
+    nnsd = ceil(nnsd);
+    offsetIdx(nnsd) = offsetIdx(nnsd) + 1;%mp(ii);
+end
+%     TD = TD/length(mp); %%% time series length normalize
+distributionNorm = linspace(2,0,length(offsetIdx))';
+
+offsetIdx = offsetIdx./distributionNorm;
+%%%delete last 20%
+% startIndex = ceil(0.8*length(offsetIdx));
+% offsetIdx(startIndex:end) = [];
+% offsetIdx = offsetIdx/mean(offsetIdx,'omitnan');
+%%%end temporal Dist
 
 % expand initial
 if first ~= 1
@@ -188,28 +219,80 @@ if last ~= initial_subcount
 end
 
 if plot_output
-    gui = mpgui_ed(timeseries, subseqlen);
-    % first pair is plottted alongside data
-    gui.plotProfile(matrixProfile);
-    if isfinite(motifsIdx(1, 1)) && ~isnan(motifsIdx(2, 1))
-        gui.plotData(motifsIdx(1, 1), motifsIdx(2, 1));
-        motiftitle = sprintf('The first motif pair is located at %d and %d.', motifsIdx(1,1), motifsIdx(2,1));
-        gui.plotMotif(gui.motifAx1, motifsIdx(1, 1), motifsIdx(2:end, 1), motiftitle);
-        if isfinite(motifsIdx(1, 2))
-            motiftitle = sprintf('The second motif pair is located at %d and %d.', motifsIdx(1,2), motifsIdx(2,2));
-            gui.plotMotif(gui.motifAx2, motifsIdx(1, 2), motifsIdx(2:end, 2), motiftitle);
-        end
-        if isfinite(motifsIdx(1, 3))
-            motiftitle = sprintf('The third motif pair is located at %d and %d.', motifsIdx(1,3), motifsIdx(2,3));
-            gui.plotMotif(gui.motifAx3, motifsIdx(1, 3), motifsIdx(2:end, 3), motiftitle);
-        end
-        gui.plotDiscords(discordsIdx, sprintf(['The top three discords ', '%d(blue), %d(red), %d(green)'], discordsIdx(1), discordsIdx(2), discordsIdx(3)));
+%     gui = mpgui_ed(timeseries, subseqlen);
+%     % first pair is plottted alongside data
+%     gui.plotProfile(matrixProfile);
+%     if isfinite(motifsIdx(1, 1)) && ~isnan(motifsIdx(2, 1))
+%         gui.plotData(motifsIdx(1, 1), motifsIdx(2, 1));
+%         motiftitle = sprintf('The first motif pair is located at %d and %d.', motifsIdx(1,1), motifsIdx(2,1));
+%         gui.plotMotif(gui.motifAx1, motifsIdx(1, 1), motifsIdx(2:end, 1), motiftitle);
+%         if isfinite(motifsIdx(1, 2))
+%             motiftitle = sprintf('The second motif pair is located at %d and %d.', motifsIdx(1,2), motifsIdx(2,2));
+%             gui.plotMotif(gui.motifAx2, motifsIdx(1, 2), motifsIdx(2:end, 2), motiftitle);
+%         end
+%         if isfinite(motifsIdx(1, 3))
+%             motiftitle = sprintf('The third motif pair is located at %d and %d.', motifsIdx(1,3), motifsIdx(2,3));
+%             gui.plotMotif(gui.motifAx3, motifsIdx(1, 3), motifsIdx(2:end, 3), motiftitle);
+%         end
+%         gui.plotDiscords(discordsIdx, sprintf(['The top three discords ', '%d(blue), %d(red), %d(green)'], discordsIdx(1), discordsIdx(2), discordsIdx(3)));
+%     else
+%         gui.plotData();
+%     end
+%     
+%     gui.drawgui;
+
+    
+    %%% Offset plots
+    colors = lines(10);
+    indexColorMatching = [0.2, 0.8, 0.5];
+    indexColorDiffering = [0.8, 0.5, 0.2];
+    figure;
+    tiledlayout(2,1);
+    
+    ax1 = nexttile();
+    [minDistValue, minDistIndex] = min(offsetDist,[],'omitnan');
+    [maxIndexValue, maxIndexIndex] = max(offsetIdx,[],'omitnan');
+    if minDistIndex == maxIndexIndex
+        markerColor = indexColorMatching;
     else
-        gui.plotData();
+        markerColor = indexColorDiffering;
     end
+
+    hold on;
+    plot(offsetDist);
+    meanMP = mean(matrixProfile,'omitnan');
+    dm = mean(offsetDist,'omitnan');
+    plot([0,length(offsetDist)], [meanMP, meanMP],"--");
+    plot([0,length(offsetDist)], [dm, dm],"--");
     
-    gui.drawgui;
+    ylim([0,2*sqrt(subseqlen)]);
+    set(gca, 'TickDir','out');
+    box off;
+
+    scatter(minDistIndex, minDistValue,"MarkerEdgeColor",markerColor,"LineWidth",1);
+    hold off;
+
+    score = (minDistValue-meanMP)/(dm-meanMP);
+    title(sprintf("Mean Offset Distance\nmin ED score: %.2f, [0,1]", score));
+    xlabel("Nearest Neighbor Offset");
+    ylabel("Mean of Offset Distances");
+    xlim([1,length(offsetDist)]);
+
+    ax2 = nexttile();
+    hold on;
+    plot(offsetIdx);
+    set(gca, 'TickDir','out');
+    box off;
+    title("Offset Index");
     
+    
+    scatter(maxIndexIndex, maxIndexValue,"MarkerEdgeColor",markerColor,"LineWidth",1);
+    hold off;
+    xlabel("Nearest Neighbor Offset");
+    ylabel("Normalized Count");
+    xlim([1,length(offsetDist)]);
+
+    linkaxes([ax1, ax2], 'x');
 end
 
 if transposed_  % matches the profile and profile index but not the motif or discord index to the input format

@@ -134,32 +134,30 @@ matrixProfile = repmat(-1, subcount, 1);
 matrixProfile(~isvalidwindow) = NaN;
 matrixProfileIdx = NaN(subcount, 1);
 
-for diag = minlag + 1 : subcount
-    if diag ~= constOffset + 1
-        continue;
-    end
-    cov_ = sum((ts(diag : diag + subseqlen - 1) - mu(diag)) .* (ts(1 : subseqlen) - mu(1)));
-    for row = 1 : subcount - diag + 1
-        col = diag + row - 1;
+diag = constOffset + 1;
+
+cov_ = sum((ts(diag : diag + subseqlen - 1) - mu(diag)) .* (ts(1 : subseqlen) - mu(1)));
+for row = 1 : subcount - diag + 1
+    col = diag + row - 1;
 %         if abs(col-row) > rr
 %             continue;
 %         end
-        if row > 1
-            cov_ = cov_ - dr_bwd(row-1) * dc_bwd(col-1) + dr_fwd(row-1) * dc_fwd(col-1);
-        end
-        corr_ = cov_ * invnorm(row) * invnorm(col);
-
-        if corr_ > matrixProfile(row)
-            matrixProfile(row) = corr_;
-            matrixProfileIdx(row) = col;
-        end
-        if corr_ > matrixProfile(col)
-            matrixProfile(col) = corr_;
-            matrixProfileIdx(col) = row;
-        end
-
+    if row > 1
+        cov_ = cov_ - dr_bwd(row-1) * dc_bwd(col-1) + dr_fwd(row-1) * dc_fwd(col-1);
     end
+    corr_ = cov_ * invnorm(row) * invnorm(col);
+
+    if corr_ > matrixProfile(row)
+        matrixProfile(row) = corr_;
+        matrixProfileIdx(row) = col;
+    end
+    if corr_ > matrixProfile(col)
+        matrixProfile(col) = corr_;
+        matrixProfileIdx(col) = row;
+    end
+
 end
+
 
 
 % updated to pick outliers independent of motifs

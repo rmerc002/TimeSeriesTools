@@ -1,4 +1,4 @@
-function [subsequences, ssIndices] = plotQueryNN(ts, query, KNN, contextLength)
+function subsequences = plotQueryNN(ts, query, KNN, contextLength)
     
     query = reshape(query,length(query),1);
     ts = reshape(ts,length(ts),1);
@@ -33,16 +33,13 @@ function [subsequences, ssIndices] = plotQueryNN(ts, query, KNN, contextLength)
     startIndex = contextLength+1;
     endIndex = startIndex + m-1;
     subsequences(1,startIndex:endIndex) = query;
-    ssIndices = zeros(KNN,1);
+    
     %%%Store the nearest neighbors
     ts = [nan(contextLength,1);ts;nan(contextLength,1)]; %easy way to handles edge cases
     for ssIndex = 1:KNN
         nnIndex = NN(ssIndex) + contextLength;
         startIndex = nnIndex - contextLength;
         endIndex = startIndex + sampleLength - 1;
-
-        ssIndices(ssIndex) = startIndex;
-
         subsequences(ssIndex+1,:) = ts(startIndex:endIndex);
     end
     

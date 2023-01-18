@@ -1,5 +1,4 @@
-function [matrixProfile, matrixProfileIdx, isvalidwindow, motifsIdx, discordsIdx] = mpx_radius(timeseries, minlag, subseqlen, TC, plot_output)
-% (mpx_v3 titled from Kaveh Kamgar, 2020-12-24 12:58)
+function [matrixProfile, matrixProfileIdx, isvalidwindow, motifsIdx, discordsIdx] = mpx_ZachV001(timeseries, minlag, subseqlen, thresh, plot_output)
 % matrixProfile - distance between each subsequence timeseries(i : i + subseqLen - 1)
 %                 for i = 1 .... length(timeseries) - subseqLen + 1, with the condition
 %                 that the nearest neighbor of the ith subsequence is at least minlag steps
@@ -66,9 +65,9 @@ initial_subcount = length(timeseries) - subseqlen + 1;
 % case with time series A,B can be computed using difference equations for
 % each time series.
 
-% if nargin == 4
-%     plot_output = false;
-% elseif nargin ~= 5
+% if nargin == 3
+%     plot_output = true;
+% elseif nargin ~= 4
 %     error('incorrect number of input arguments');
 % elseif ~isvector(timeseries)
 %     error('first argument must be a 1D vector');
@@ -130,17 +129,11 @@ dr_bwd = ts(1 : subcount - 1) - mu(1 : subcount - 1);
 dc_bwd = ts(1 : subcount - 1) - mus;
 dr_fwd = ts(subseqlen + 1 : end) - mu(2 : subcount);
 dc_fwd = ts(subseqlen + 1 : end) - mus;
-matrixProfile = repmat(-1, subcount, 1);
-matrixProfile(~isvalidwindow) = NaN;
-matrixProfileIdx = NaN(subcount, 1);
+matrixProfile = zeros(subcount,1);
+% matrixProfile(~isvalidwindow) = 0;
+matrixProfileIdx = zeros(subcount,1);
 
 for diag = minlag + 1 : subcount
-    %%%This is the only change to the standard functionality.
-    %%%Skip checking diagnols that are > radius+1 from the main diagnoal
-
-    if diag > TC + 1
-        continue;
-    end
     cov_ = sum((ts(diag : diag + subseqlen - 1) - mu(diag)) .* (ts(1 : subseqlen) - mu(1)));
     for row = 1 : subcount - diag + 1
         col = diag + row - 1;
@@ -148,74 +141,17 @@ for diag = minlag + 1 : subcount
             cov_ = cov_ - dr_bwd(row-1) * dc_bwd(col-1) + dr_fwd(row-1) * dc_fwd(col-1);
         end
         corr_ = cov_ * invnorm(row) * invnorm(col);
-        if corr_ > matrixProfile(row)
-            matrixProfile(row) = corr_;
-            matrixProfileIdx(row) = col;
+        if corr_ > thresh
+            matrixProfile(row) = matrixProfile(row) + corr_;
+            matrixProfileIdx(row) = matrixProfileIdx(row) + 1;
         end
-        if corr_ > matrixProfile(col)
-            matrixProfile(col) = corr_;
-            matrixProfileIdx(col) = row;
+        if corr_ > thresh
+            matrixProfile(col) = matrixProfile(col) + corr_;
+            matrixProfileIdx(col) = matrixProfileIdx(col) + 1;
         end
     end
 end
 
-
-% updated to pick outliers independent of motifs
-% this means they might overlap or whatever. Compute more of them if you
-% need to in order to avoid this. The other methods introduce bias.
-[discordsIdx] = findDiscords(matrixProfile, minlag);
-
-[motifsIdx] = findMotifs(ts, mu, invnorm, matrixProfile, matrixProfileIdx, subseqlen, minlag);
-
-
-% Max caps anything that rounds inappropriately. This can hide potential
-% issues at times, but it's fairly rare.
-matrixProfile = sqrt(max(0, 2 * subseqlen * (1 - matrixProfile), 'includenan'));
-
-% expand initial
-if first ~= 1
-    isvalidwindow = [false(first - 1, 1); isvalidwindow];
-    matrixProfile = [repmat(-1, first - 1, 1); matrixProfile];
-    % offset index to compensate for the dropped leading windows
-    matrixProfileIdx = [repmat(-1, first - 1, 1); matrixProfileIdx + first - 1];
-end
-
-if last ~= initial_subcount
-    extendby = initial_subcount - last + 1;
-    isvalidwindow = [isvalidwindow; false(extendby, 1)];
-    matrixProfile = [matrixProfile; NaN(extendby, 1)];
-    matrixProfileIdx = [matrixProfileIdx; NaN(extendby, 1);];
-end
-
-if plot_output
-    gui = mpgui_ed(timeseries, subseqlen);
-    % first pair is plottted alongside data
-    gui.plotProfile(matrixProfile);
-    if isfinite(motifsIdx(1, 1)) && ~isnan(motifsIdx(2, 1))
-        gui.plotData(motifsIdx(1, 1), motifsIdx(2, 1));
-        motiftitle = sprintf('The first motif pair is located at %d and %d.', motifsIdx(1,1), motifsIdx(2,1));
-        gui.plotMotif(gui.motifAx1, motifsIdx(1, 1), motifsIdx(2:end, 1), motiftitle);
-        if isfinite(motifsIdx(1, 2))
-            motiftitle = sprintf('The second motif pair is located at %d and %d.', motifsIdx(1,2), motifsIdx(2,2));
-            gui.plotMotif(gui.motifAx2, motifsIdx(1, 2), motifsIdx(2:end, 2), motiftitle);
-        end
-        if isfinite(motifsIdx(1, 3))
-            motiftitle = sprintf('The third motif pair is located at %d and %d.', motifsIdx(1,3), motifsIdx(2,3));
-            gui.plotMotif(gui.motifAx3, motifsIdx(1, 3), motifsIdx(2:end, 3), motiftitle);
-        end
-        gui.plotDiscords(discordsIdx, sprintf(['The top three discords ', '%d(blue), %d(red), %d(green)'], discordsIdx(1), discordsIdx(2), discordsIdx(3)));
-    else
-        gui.plotData();
-    end
-    
-    gui.drawgui;
-    
-end
-
-if transposed_  % matches the profile and profile index but not the motif or discord index to the input format
-    matrixProfile = transpose(matrixProfile);
-    matrixProfileIdx = transpose(matrixProfileIdx);
-end
 
 end
 
