@@ -1,0 +1,47 @@
+function plotVideoResults(videoResults)
+%%%Expect results package in the form of 
+%%% level 1: {plato, platoNN, negNN}
+%%% level 2: {subsequenceObj; fileNumber; videoPath; posNegFeatureIndices}
+%%% subsequnceObj properties:
+%%%     subsequenceWithContext;
+%%%     contextLength;
+%%%     subsequenceLength;
+%%%     length;
+%%%     tsMin;
+%%%     tsMax;
+%%%     tsStartIndexContext;
+%%%     tsStartIndexSubsequence;
+
+
+%%%There will be a problem if the subsequence found is less than context
+%%%length away from either end of the original ts.
+sswcPlato = videoResults{1}{1};
+vidPlato = VideoReader(videoResults{1}{3});
+startIndexVideoPlato = sswcPlato.tsStartIndexContext;
+numFrames = sswcPlato.length;%vid1.NumberOfFrames
+subsequenceColor = [129/255, 51/255, 144/255]; %%% purple
+platoStruct = {sswcPlato, vidPlato, startIndexVideoPlato, subsequenceColor, videoResults{1}};
+
+sswcPlatoNN = videoResults{2}{1};
+vidPlatoNN = VideoReader(videoResults{2}{3});
+startIndexVideoPlatoNN = sswcPlatoNN.tsStartIndexContext;
+subsequenceColor = [115/255, 170/255, 43/255]; %%% green
+platoNNStruct = {sswcPlatoNN, vidPlatoNN, startIndexVideoPlatoNN, subsequenceColor, videoResults{2}};
+
+sswcNegNN = videoResults{3}{1};
+vidNegNN = VideoReader(videoResults{3}{3});
+startIndexVideoNegNN = sswcNegNN.tsStartIndexContext;
+subsequenceColor = [0.73,0.05,0]; %%% red
+negNNStruct = {sswcNegNN, vidNegNN, startIndexVideoNegNN, subsequenceColor, videoResults{3}};
+
+subsequenceResultStructs = {platoStruct, platoNNStruct, negNNStruct};
+
+outputVideoHandle = VideoWriter('test1.mp4', 'MPEG-4');
+open(outputVideoHandle);
+
+videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs, outputVideoHandle));
+for ii = 1:numFrames
+    redraw(ii, subsequenceResultStructs, outputVideoHandle);
+end
+close(outputVideoHandle)
+end

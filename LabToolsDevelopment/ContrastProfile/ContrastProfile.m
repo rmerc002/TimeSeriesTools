@@ -158,7 +158,7 @@ function [plato, plato_twin, CP] = ContrastProfile(positiveTS, negativeTS, m, fo
         %%%%%%%%%%%%%%%%%%
         %%% PLATO plot %%%
         %%%%%%%%%%%%%%%%%%
-        negDistanceProfile = MASS_V2(negativeTS, plato);
+        negDistanceProfile = MASS_V2_nan(negativeTS + randn(size(negativeTS))*1e-5, plato);
         [~,negNNIndex] = min(negDistanceProfile);
         negNN = negativeTS(negNNIndex:negNNIndex+m-1);
 
