@@ -41,12 +41,22 @@ axis image off;
 
 hold on;
 pastWidth = 0;
+
+plato = ssrs{1}{5}{1}.subsequenceWithoutContext;
+platoNN = ssrs{2}{5}{1}.subsequenceWithoutContext;
+negNN = ssrs{3}{5}{1}.subsequenceWithoutContext;
+
+distVals = zeros(3,1);
+distVals(2) = norm(zscore(plato)-zscore(platoNN))/sqrt(2*length(plato)); %%%Pos Euclidean Dist
+distVals(3) = norm(zscore(plato)-zscore(negNN))/sqrt(2*length(plato));%%%Neg Euclidean Dist
+distVals(1) = max(0, distVals(3) - distVals(2)); %%%Contrast
+
+distStrings = ["Contrast", "T-Positive Euclidean Distance", "T-Negative Euclidean Distance"];
 %%% Text Info
 %%% Title
 %%% Limb string and feature index
 %%% Current behavior Time and index
 %%% FileID
-
 titles = ["Most Contrasting Positive Behavior"; "Closest Positive Match"; "Closest Negative Match"];
 featurePosNeg = [1,1,2];
 textInfo = cell(numSS,1);
@@ -57,7 +67,8 @@ for ii = 1:numSS
     timeStr = concatenatedIndexToTime(timeIndex, ssrs{ii}{2}.FrameRate);
     line2 = sprintf("Video time: %s    Video frame: %d",timeStr, timeIndex);
     line3 = sprintf("File ID: %s", ssrs{ii}{5}{2});
-    textInfo{ii} = {titles(ii); line1; line2; line3};
+    line4 = sprintf("%s: %.2f", distStrings(ii), distVals(ii));
+    textInfo{ii} = {titles(ii); line1; line2; line3; line4};
 end
 
 % textInfo = {'Title'};
