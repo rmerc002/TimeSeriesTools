@@ -15,6 +15,12 @@ function plotVideoResults(videoResults)
 
 %%%There will be a problem if the subsequence found is less than context
 %%%length away from either end of the original ts.
+
+%%%Dependencies:
+%%% sbusequence.m
+%%% redraw.m
+%%% videofig
+
 sswcPlato = videoResults{1}{1};
 vidPlato = VideoReader(videoResults{1}{3});
 startIndexVideoPlato = sswcPlato.tsStartIndexContext;
@@ -36,10 +42,16 @@ negNNStruct = {sswcNegNN, vidNegNN, startIndexVideoNegNN, subsequenceColor, vide
 
 subsequenceResultStructs = {platoStruct, platoNNStruct, negNNStruct};
 
-outputVideoHandle = VideoWriter('test1.mp4', 'MPEG-4');
+outputVideoHandle = VideoWriter('test2.mp4', 'MPEG-4');
 open(outputVideoHandle);
 
 videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs, outputVideoHandle));
+fig = gcf;
+scale = 200;
+% fig.Position = [100,100,ceil(scale*16),ceil(scale*2*9)];
+fig.Units = 'pixels';
+fig.Position = [760,600,1275,500];
+
 for ii = 1:numFrames
     redraw(ii, subsequenceResultStructs, outputVideoHandle);
 end
