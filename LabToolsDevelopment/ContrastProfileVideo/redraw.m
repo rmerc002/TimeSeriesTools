@@ -20,6 +20,8 @@ videoFrames = {};
 for ii = 1:numSS
     startIndex = ssrs{ii}{3};
     timeIndex = frame + startIndex - 1;
+    timeIndex = max(1, timeIndex);
+    timeIndex = min(ssrs{ii}{2}.NumFrames, timeIndex);
     videoFrames{ii} = ssrs{ii}{2}.read(timeIndex);
 end
 
@@ -68,11 +70,10 @@ distStrings = ["Contrast", "T-Positive Euclidean Distance", "T-Negative Euclidea
 %%% Current behavior Time and index
 %%% FileID
 titles = ["Most Contrasting Positive Behavior"; "Closest Positive Match"; "Closest Negative Match"];
-featurePosNeg = [1,1,2];
 textInfo = cell(numSS,1);
 for ii = 1:numSS
-    [limbAnn, coordAnn] = mouseFeatureAnnotation(ssrs{ii}{5}{4}(featurePosNeg(ii)));
-    line1 = sprintf("Limb: %s(%s)    FeatureID: %d",limbAnn, coordAnn, featurePosNeg(ii));
+    [limbAnn, coordAnn] = mouseFeatureAnnotation(ssrs{ii}{5}{4});
+    line1 = sprintf("Limb: %s(%s)    FeatureID: %d",limbAnn, coordAnn, ssrs{ii}{5}{4});
     timeIndex = ssrs{ii}{5}{1}.tsStartIndexContext + frame - 1;
     timeStr = concatenatedIndexToTime(timeIndex, ssrs{ii}{2}.FrameRate);
     line2 = sprintf("Video time: %s    Video frame: %d",timeStr, timeIndex);
