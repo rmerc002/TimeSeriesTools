@@ -1,7 +1,7 @@
 function plotVideoResults(videoResults, outputPath)
 %%%Expect results package in the form of 
 %%% level 1: {plato, platoNN, negNN}
-%%% level 2: {subsequenceObj; fileNumber; videoPath; posNegFeatureIndices}
+%%% level 2: {subsequenceObj; fileNumber; videoPath; posNegFeatureIndices, tsMinMax}
 %%% subsequnceObj properties:
 %%%     subsequenceWithContext;
 %%%     contextLength;
@@ -44,6 +44,7 @@ subsequenceResultStructs = {platoStruct, platoNNStruct, negNNStruct};
 
 if nargin == 2
     outputVideoHandle = VideoWriter(outputPath, 'MPEG-4');
+    outputVideoHandle.FrameRate = 30;
     open(outputVideoHandle);
     videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs, outputVideoHandle));
 else

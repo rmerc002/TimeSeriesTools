@@ -27,20 +27,30 @@ end
 compositeImage = [];
 padWidth = 10;
 for ii = 1:numSS
-    compositeImage = [compositeImage, padarray(videoFrames{ii}, [padWidth,padWidth], nan)];
+    blackHeight = ceil(0.5*size(videoFrames{ii},1) + 0.5*size(videoFrames{ii},1));
+    blackWidth = size(videoFrames{ii},2);
+    blackBottom = zeros(blackHeight, blackWidth, 3);
+    partitionImage = cat(1, videoFrames{ii}, blackBottom);
+
+    if ii > 1
+        compositeImage = [compositeImage, 255*ones(size(partitionImage,1),padWidth,3), partitionImage];
+    else
+        compositeImage = partitionImage;
+    end
 end
 
-blackHeight = ceil(0.5*size(compositeImage,1) + 0.5*size(compositeImage,1));
-blackWidth = size(compositeImage,2);
-blackBottom = zeros(blackHeight, blackWidth, 3);
-compositeImage = cat(1, compositeImage, blackBottom);
+partitionWidth = size(videoFrames{ii},2) + padWidth;
+% blackHeight = ceil(0.5*size(compositeImage,1) + 0.5*size(compositeImage,1));
+% blackWidth = size(compositeImage,2);
+% blackBottom = zeros(blackHeight, blackWidth, 3);
+% compositeImage = cat(1, compositeImage, blackBottom);
 
 % Display
 image(compositeImage); 
 axis image off;
 
 hold on;
-pastWidth = 0;
+
 
 plato = ssrs{1}{5}{1}.subsequenceWithoutContext;
 platoNN = ssrs{2}{5}{1}.subsequenceWithoutContext;
@@ -62,7 +72,7 @@ featurePosNeg = [1,1,2];
 textInfo = cell(numSS,1);
 for ii = 1:numSS
     [limbAnn, coordAnn] = mouseFeatureAnnotation(ssrs{ii}{5}{4}(featurePosNeg(ii)));
-    line1 = sprintf("Limb: %s(%s)",limbAnn, coordAnn);
+    line1 = sprintf("Limb: %s(%s)    FeatureID: %d",limbAnn, coordAnn, featurePosNeg(ii));
     timeIndex = ssrs{ii}{5}{1}.tsStartIndexContext + frame - 1;
     timeStr = concatenatedIndexToTime(timeIndex, ssrs{ii}{2}.FrameRate);
     line2 = sprintf("Video time: %s    Video frame: %d",timeStr, timeIndex);
@@ -72,12 +82,13 @@ for ii = 1:numSS
 end
 
 % textInfo = {'Title'};
+pastWidth = 0;
 
 for ii = 1:numSS
     plotDims = [pastWidth + 1, 1+ssrs{ii}{2}.Height, ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height), ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height)];
     subsequenceColor = ssrs{ii}{4};
     overlayPlot(ssrs{ii}{1}, plotDims, frame, subsequenceColor, textInfo{ii});
-    pastWidth = pastWidth + ssrs{ii}{2}.Width;
+    pastWidth = pastWidth + partitionWidth;
 end
 hold off;
 
@@ -97,6 +108,7 @@ function overlayPlot(sswc, plotDims, frame, subsequenceColor, textInfo)
     textHeight = plotDims(6);
     textOriginX = originX;
     textOriginY = originY + plotHeight + ceil(0.5*textHeight);
+    textXOffset = 10;
 
     wcInterpX = originX + linspace(1, plotWidth, sswc.length)-1;
     wcInterpY = interp1([sswc.tsMin,sswc.tsMax],[originY+plotHeight-1, originY],sswc.subsequenceWithContext);
@@ -108,10 +120,10 @@ function overlayPlot(sswc, plotDims, frame, subsequenceColor, textInfo)
 
     hold on;
     plot(wcInterpX, wcInterpY, 'Color', [0.7, 0.7, 0.7]);
-    text(textOriginX, textOriginY,textInfo,'Color',[1,1,1],'VerticalAlignment', 'middle');
+    text(textOriginX + textXOffset, textOriginY,textInfo,'Color',[1,1,1],'VerticalAlignment', 'middle');
 
     plot(wocInterpX, wocInterpY,'Color',subsequenceColor,'LineWidth',3);
 
-    plot(wcCursorX, wcCursorY,'r|','MarkerSize',35,'LineWidth',3);
+    plot(wcCursorX, wcCursorY,'r|','MarkerSize',35,'LineWidth',1);
     
 end
