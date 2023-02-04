@@ -3,7 +3,7 @@ function [timeStr, fileIndex] = concatenatedIndexToTime(behaviorIndex, sampleRat
     if nargin < 3
         fileLengths = [inf];
     end
-    
+    fileIndex = 1;
     for ii = 1:length(fileLengths)
         if behaviorIndex <= fileLengths(ii)
             fileIndex = ii;

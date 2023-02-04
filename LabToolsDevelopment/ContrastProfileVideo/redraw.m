@@ -25,7 +25,8 @@ for ii = 1:numSS
     videoFrames{ii} = ssrs{ii}{2}.read(timeIndex);
 end
 
-
+%%%Add black area below video to display Contrast Profile plots and text
+%%%Also add white border between video
 compositeImage = [];
 padWidth = 10;
 for ii = 1:numSS
@@ -34,18 +35,15 @@ for ii = 1:numSS
     blackBottom = zeros(blackHeight, blackWidth, 3);
     partitionImage = cat(1, videoFrames{ii}, blackBottom);
 
+    %%%white boundary between video
     if ii > 1
-        compositeImage = [compositeImage, 255*ones(size(partitionImage,1),padWidth,3), partitionImage];
-    else
-        compositeImage = partitionImage;
+        compositeImage = [compositeImage, 255*ones(size(partitionImage,1),padWidth,3)];
     end
+    compositeImage = [compositeImage,partitionImage];
 end
 
 partitionWidth = size(videoFrames{ii},2) + padWidth;
-% blackHeight = ceil(0.5*size(compositeImage,1) + 0.5*size(compositeImage,1));
-% blackWidth = size(compositeImage,2);
-% blackBottom = zeros(blackHeight, blackWidth, 3);
-% compositeImage = cat(1, compositeImage, blackBottom);
+
 
 % Display
 image(compositeImage); 

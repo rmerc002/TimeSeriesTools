@@ -39,7 +39,7 @@ for indexTime = 1:length(tsNonNan) - subLength + 1
     if sum(isnan(subsequence)) > 0
        continue;
    end
-   distProfile = MASS_V2(tsNonNan, subsequence);
+   distProfile = MASS_V2_nan(tsNonNan, subsequence);
    
    %%%Exlusion zone around the current subsequence
    startIndex = max(1, indexTime-subLength);
