@@ -1,4 +1,4 @@
-function plotVideoResults(videoResults, outputPath)
+function plotVideoResults(videoResults, featureAnnotations, outputPath)
 %%%Expect results package in the form of 
 %%% level 1: {plato, platoNN, negNN}
 %%% level 2: {subsequenceObj; fileNumber; videoPath; posNegFeatureIndices, tsMinMax}
@@ -42,14 +42,14 @@ negNNStruct = {sswcNegNN, vidNegNN, startIndexVideoNegNN, subsequenceColor, vide
 
 subsequenceResultStructs = {platoStruct, platoNNStruct, negNNStruct};
 
-if nargin == 2
+if nargin == 3
     outputVideoHandle = VideoWriter(outputPath, 'MPEG-4');
     outputVideoHandle.FrameRate = 30;
     open(outputVideoHandle);
-    videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs, outputVideoHandle));
+    videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs, featureAnnotations, outputVideoHandle));
 else
-    videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs));
-    redraw(1, subsequenceResultStructs);
+    videofig(numFrames, @(frm) redraw(frm, subsequenceResultStructs, featureAnnotations));
+    redraw(1, subsequenceResultStructs, featureAnnotations);
 end
 
 fig = gcf;
@@ -58,9 +58,9 @@ scale = 200;
 fig.Units = 'pixels';
 fig.Position = [760,600,1275,500];
 
-if nargin == 2
+if nargin == 3
     for ii = 1:numFrames
-        redraw(ii, subsequenceResultStructs, outputVideoHandle);
+        redraw(ii, subsequenceResultStructs, featureAnnotations, outputVideoHandle);
     end
     close(outputVideoHandle)
     close(gcf);

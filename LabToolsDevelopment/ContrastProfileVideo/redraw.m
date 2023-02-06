@@ -1,7 +1,7 @@
 %%%https://www.mathworks.com/matlabcentral/fileexchange/29544-figure-to-play-and-analyze-videos-with-custom-plots-on-top
 %%%https://blogs.mathworks.com/pick/2010/12/10/video-player-for-your-frame-based-processing/
 % type redraw
-function redraw(frame, ssrs, outputVideoHandle)
+function redraw(frame, ssrs, featureAnnotations, outputVideoHandle)
 % REDRAW  Process a particular frame of the video
 %   REDRAW(FRAME, VIDOBJ)
 %       frame  - frame number to process
@@ -70,7 +70,8 @@ distStrings = ["Contrast", "T-Positive Euclidean Distance", "T-Negative Euclidea
 titles = ["Most Contrasting Positive Behavior"; "Closest Positive Match"; "Closest Negative Match"];
 textInfo = cell(numSS,1);
 for ii = 1:numSS
-    [limbAnn, coordAnn] = mouseFeatureAnnotation(ssrs{ii}{5}{4});
+    limbAnn = featureAnnotations{3}(ssrs{ii}{5}{4});
+    coordAnn = featureAnnotations{4}(ssrs{ii}{5}{4});
     line1 = sprintf("Limb: %s(%s)    FeatureID: %d",limbAnn, coordAnn, ssrs{ii}{5}{4});
     timeIndex = ssrs{ii}{5}{1}.tsStartIndexContext + frame - 1;
     timeStr = concatenatedIndexToTime(timeIndex, ssrs{ii}{2}.FrameRate);
@@ -91,7 +92,7 @@ for ii = 1:numSS
 end
 hold off;
 
-if nargin == 3
+if nargin == 4
     outputFrame = getframe(gcf);
     writeVideo(outputVideoHandle, outputFrame);
 end
