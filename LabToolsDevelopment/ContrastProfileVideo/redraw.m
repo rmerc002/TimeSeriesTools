@@ -84,11 +84,26 @@ end
 % textInfo = {'Title'};
 pastWidth = 0;
 
-for ii = 1:numSS
+if frame > 1
+    for ii = 1:numSS
+        plotDims = [pastWidth + 1, 1+ssrs{ii}{2}.Height, ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height), ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height)];
+        subsequenceColor = ssrs{ii}{4};
+        subsequencePlot(ssrs{ii}{1}, plotDims, frame, subsequenceColor, textInfo{ii});
+        pastWidth = pastWidth + partitionWidth;
+    end
+elseif numSS > 1
+    ii = 1;
     plotDims = [pastWidth + 1, 1+ssrs{ii}{2}.Height, ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height), ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height)];
     subsequenceColor = ssrs{ii}{4};
-    overlayPlot(ssrs{ii}{1}, plotDims, frame, subsequenceColor, textInfo{ii});
+    subsequencePlot(ssrs{ii}{1}, plotDims, frame, subsequenceColor, textInfo{ii});
     pastWidth = pastWidth + partitionWidth;
+
+    for ii = 2:numSS
+        plotDims = [pastWidth + 1, 1+ssrs{ii}{2}.Height, ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height), ssrs{ii}{2}.Width, ceil(0.5*ssrs{ii}{2}.Height)];
+        subsequenceColors = [ssrs{1}{4}; ssrs{ii}{4}];
+        overlayPlot(ssrs{1}{1}, ssrs{ii}{1}, plotDims, frame, subsequenceColors, textInfo{ii});
+        pastWidth = pastWidth + partitionWidth;
+    end
 end
 hold off;
 
@@ -98,7 +113,7 @@ if nargin == 4
 end
 end
 
-function overlayPlot(sswc, plotDims, frame, subsequenceColor, textInfo)
+function subsequencePlot(sswc, plotDims, frame, subsequenceColor, textInfo)
     %%%[originX, originY, width, height]
     originX = plotDims(1);
     originY = plotDims(2);
@@ -125,5 +140,44 @@ function overlayPlot(sswc, plotDims, frame, subsequenceColor, textInfo)
     plot(wocInterpX, wocInterpY,'Color',subsequenceColor,'LineWidth',3);
 
     plot(wcCursorX, wcCursorY,'r|','MarkerSize',35,'LineWidth',1);
+    
+end
+
+function overlayPlot(sswc1, sswc2, plotDims, frame, subsequenceColors, textInfo)
+    %%%[originX, originY, width, height]
+    originX = plotDims(1);
+    originY = plotDims(2);
+    plotWidth = plotDims(3);
+    plotHeight = plotDims(4);
+    textWidth = plotDims(5);
+    textHeight = plotDims(6);
+    textOriginX = originX;
+    textOriginY = originY + plotHeight + ceil(0.5*textHeight);
+    textXOffset = 10;
+
+    ss1 = zscore(sswc1.subsequenceWithoutContext');
+    ss1 = reshape(ss1, [1,length(ss1)]);
+    ss2 = zscore(sswc2.subsequenceWithoutContext');
+    ss2 = reshape(ss2,[1,length(ss2)]);
+
+    ssMin = min([ss1,ss2]);
+    ssMax = max([ss1, ss2]);
+
+    wocInterpX1 = originX + linspace(1, plotWidth, length(ss1))-1;
+    wocInterpY1 = interp1([ssMin, ssMax],[originY+plotHeight-1, originY],ss1);
+
+    wocInterpX2 = wocInterpX1;
+    wocInterpY2 = interp1([ssMin, ssMax],[originY+plotHeight-1, originY],ss2);
+
+    wcCursorX = interp1([1,sswc1.length],[originX,originX+plotWidth-1],frame);
+    wcCursorY = interp1([ssMin, ssMax], [originY+plotHeight-1, originY], [sswc1.subsequenceWithContext(frame)]);
+
+    hold on;
+    plot(wocInterpX1, wocInterpY1,'Color',subsequenceColors(1,:),'LineWidth',3);
+    plot(wocInterpX2, wocInterpY2,'Color',subsequenceColors(2,:),'LineWidth',3);
+
+    text(textOriginX + textXOffset, textOriginY,textInfo,'Color',[1,1,1],'VerticalAlignment', 'middle');
+
+%     plot(wcCursorX, wcCursorY,'r|','MarkerSize',35,'LineWidth',1);
     
 end
